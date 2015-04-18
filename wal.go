@@ -63,7 +63,8 @@ type LogIndex interface {
 	Size() (uint64, error)
 	Header() (IndexHeader, error)
 	Append(record IndexRecord) (n int, err error)
-	Slice(offset int64, whence int64) ([]IndexRecord, error)
+	Slice(offset int64, limit int64) (IndexSlice, error)
+	Flush() error
 	Close() error
 }
 
@@ -71,6 +72,12 @@ type LogIndex interface {
 type IndexHeader interface {
 	Version() uint8
 	Flags() uint32
+}
+
+// IndexSlice contains several index records for easy access.
+type IndexSlice interface {
+	Get(index int) (IndexRecord, error)
+	Size() int
 }
 
 // IndexRecord describes each item in an index file.
