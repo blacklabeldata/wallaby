@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/eliquious/xbinary"
 )
@@ -274,12 +275,13 @@ func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
 
 // IncrementSize bumps the index size by one.
 func (i *VersionOneIndexFile) incrementSize() {
-	*i.size++
+	// *i.size++
+	atomic.AddUint64(i.size, 1)
 }
 
 // Size is the number of elements in the index. Which should coorespond with the number of records in the data file.
 func (i VersionOneIndexFile) Size() (uint64, error) {
-	return *i.size, nil
+	return atomic.LoadUint64(i.size), nil
 }
 
 // Header returns the file header which describes the index file.
@@ -289,10 +291,14 @@ func (i VersionOneIndexFile) Header() (IndexHeader, error) {
 
 // Slice returns multiple index records starting at the given offset.
 func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
+	// flush buffer on read
 	i.Flush()
 
+	// get size
+	var size = atomic.LoadUint64(i.size)
+
 	// offset too  or less than 0
-	if offset > int64(*i.size) || offset < 0 {
+	if offset > int64(size) || offset < 0 {
 		return nil, ErrSliceOutOfBounds
 
 		// invalid limit
@@ -306,8 +312,8 @@ func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error
 		buf = make([]byte, VersionOneIndexRecordSize*MaximumIndexSlice)
 
 		// request exceeds index size
-	} else if uint64(offset+limit) > *i.size {
-		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(*i.size)))
+	} else if uint64(offset+limit) > size {
+		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(size)))
 
 		// full request can be satisfied
 	} else {
