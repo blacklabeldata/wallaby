@@ -9,33 +9,36 @@ import (
 type WriteAheadLog interface {
 	io.Closer
 
-	Store() (LogStore, error)
-	Snapshot() (Snapshot, error)
-	Index() (LogIndex, error)
-	Metadata() (Metadata, error)
-	Recover() error
-}
-
-// LogStore contains all the records in the log.
-type LogStore interface {
-	Header() (LogHeader, error)
-
 	// Allows for log records to be read from the log at specific byte offsets.
 	LogReader
 
 	// Creates a new record and appends it to the log.
 	LogAppender
+
+	// Snapshot records the current position of the log file.
+	Snapshot() (Snapshot, error)
+
+	// Metadata returns meta data of the log file.
+	Metadata() (Metadata, error)
+
+	// Recover should be called when the log is opened to verify consistency of the log.
+	Recover() error
 }
+
+// // LogStore contains all the records in the log.
+// type LogStore interface {
+// 	Header() (LogHeader, error)
+// }
 
 // LogAppender appends a new record to the end of the log.
 type LogAppender interface {
 	// Append wraps the given bytes array in a Record and returns the record index or an error
-	Append(data []byte) (uint64, error)
+	Append(data []byte) (Record, error)
 }
 
 // LogReader reads a Record at a specific offset
 type LogReader interface {
-	ReadAt(offset int64) (Record, error)
+	ReadAt(offset int64, limit int64) (Record, error)
 }
 
 // LogHeader is at the front of the log file and describes which version the file was written with as well as any boolean flags associated with the file
@@ -51,40 +54,6 @@ type Record interface {
 	HeaderSize() uint64
 	Size() uint64
 	Data() ([]byte, error)
-}
-
-// IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.
-type IndexFactory interface {
-	GetOrCreateIndex(flags uint32) (*LogIndex, error)
-}
-
-// LogIndex maintains a list of all the records in the log file. IndexRecords
-type LogIndex interface {
-	Size() (uint64, error)
-	Header() (IndexHeader, error)
-	Append(record IndexRecord) (n int, err error)
-	Slice(offset int64, limit int64) (IndexSlice, error)
-	Flush() error
-	Close() error
-}
-
-// IndexHeader describes which version the index file was written with. Flags represents boolean flags.
-type IndexHeader interface {
-	Version() uint8
-	Flags() uint32
-}
-
-// IndexSlice contains several index records for easy access.
-type IndexSlice interface {
-	Get(index int) (IndexRecord, error)
-	Size() int
-}
-
-// IndexRecord describes each item in an index file.
-type IndexRecord interface {
-	Time() int64
-	Index() uint64
-	Offset() int64
 }
 
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a CRC64 of all the log entries.

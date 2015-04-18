@@ -37,6 +37,40 @@ const (
 	MaximumIndexSlice = 32000
 )
 
+// IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.
+type IndexFactory interface {
+	GetOrCreateIndex(flags uint32) (*LogIndex, error)
+}
+
+// LogIndex maintains a list of all the records in the log file. IndexRecords
+type LogIndex interface {
+	Size() (uint64, error)
+	Header() (IndexHeader, error)
+	Append(record IndexRecord) (n int, err error)
+	Slice(offset int64, limit int64) (IndexSlice, error)
+	Flush() error
+	Close() error
+}
+
+// IndexHeader describes which version the index file was written with. Flags represents boolean flags.
+type IndexHeader interface {
+	Version() uint8
+	Flags() uint32
+}
+
+// IndexSlice contains several index records for easy access.
+type IndexSlice interface {
+	Get(index int) (IndexRecord, error)
+	Size() int
+}
+
+// IndexRecord describes each item in an index file.
+type IndexRecord interface {
+	Time() int64
+	Index() uint64
+	Offset() int64
+}
+
 // BasicIndexRecord implements the bare IndexRecord interface.
 type BasicIndexRecord struct {
 	nanos  int64
@@ -335,7 +369,7 @@ type VersionOneIndexSlice struct {
 	size   int
 }
 
-// Size returns the number of records in thie slice.
+// Size returns the number of records in this slice.
 func (s VersionOneIndexSlice) Size() int {
 	return s.size
 }
@@ -347,4 +381,8 @@ func (s VersionOneIndexSlice) Get(index int) (IndexRecord, error) {
 	}
 
 	return VersionOneIndexRecord{&s.buffer, index * VersionOneIndexRecordSize}, nil
+}
+
+func (s VersionOneIndexSlice) MarshalBinary() (data []byte, err error) {
+	return s.buffer, nil
 }
