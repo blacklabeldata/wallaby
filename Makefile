@@ -10,6 +10,12 @@ test:
 	@echo "------------------"
 	@go test -coverprofile=$(CWD)/coverage.out
 
+bench:
+	@echo "------------------"
+	@echo " benchmark"
+	@echo "------------------"
+	@go test -test.bench "^Bench*" -benchmem
+
 html:
 	@echo "------------------"
 	@echo " html report"
