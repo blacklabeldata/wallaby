@@ -26,7 +26,7 @@ var (
 
 const (
 	// FlagsDefault is the default boolean flags for an index file
-	FlagsDefault = 0
+	DefaultIndexFlags = 0
 
 	// VersionOne is an integer denoting the first version
 	VersionOne                = 1
@@ -58,7 +58,7 @@ type IndexHeader interface {
 	Flags() uint32
 }
 
-// IndexSlice contains several index records for easy access.
+// IndexSlice contains several buffered index records for fast access.
 type IndexSlice interface {
 	Get(index int) (IndexRecord, error)
 	Size() int
