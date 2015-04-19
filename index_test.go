@@ -60,7 +60,7 @@ func TestVersionOneCreateIndex(t *testing.T) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	assert.NotNil(t, index, "Index file could not be created")
 	assert.Nil(t, err, "CreateIndex produced an error")
@@ -75,7 +75,7 @@ func TestVersionOneCreateIndex(t *testing.T) {
 	// test header
 	header, err := index.Header()
 	assert.Equal(t, 1, header.Version())
-	assert.Equal(t, uint32(FlagsDefault), header.Flags())
+	assert.Equal(t, uint32(DefaultIndexFlags), header.Flags())
 
 	// test Size
 	size, err := index.Size()
@@ -96,16 +96,16 @@ func TestVersionOneCreateIndexExisting(t *testing.T) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 	index.Close()
 
 	// re-open file
-	index, err = factory.GetOrCreateIndex(FlagsDefault)
+	index, err = factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	// test header
 	header, err := index.Header()
 	assert.Equal(t, 1, header.Version())
-	assert.Equal(t, uint32(FlagsDefault), header.Flags())
+	assert.Equal(t, uint32(DefaultIndexFlags), header.Flags())
 
 	// test Size
 	size, err := index.Size()
@@ -126,7 +126,7 @@ func TestVersionOneAppend(t *testing.T) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	// test index file
 	assert.NotNil(t, index, "Index file could not be created")
@@ -168,7 +168,7 @@ func TestVersionOneSlice(t *testing.T) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	// offset out of range
 	slice, err := index.Slice(1, 1)
@@ -230,7 +230,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	// var unix, offset int64
 	var record BasicIndexRecord
@@ -267,7 +267,7 @@ func BenchmarkIndexSlice(b *testing.B) {
 
 	// create index factory
 	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(FlagsDefault)
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
 
 	// append records
 	for i := 0; i < b.N; i++ {
