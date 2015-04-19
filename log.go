@@ -26,10 +26,12 @@ type WriteAheadLog interface {
 	io.Closer
 
 	// Allows for log records to be read from the log at specific byte offsets.
-	LogReader
+	LogPipe
 
 	// Creates a new record and appends it to the log.
 	LogAppender
+
+	Cursor() Cursor
 
 	// Snapshot records the current position of the log file.
 	Snapshot() (Snapshot, error)
@@ -37,28 +39,38 @@ type WriteAheadLog interface {
 	// Metadata returns meta data of the log file.
 	Metadata() (Metadata, error)
 
-	// Recover should be called when the log is opened to verify consistency of the log.
+	// Recover should be called when the log is opened to verify consistency 
+	// of the log.
 	Recover() error
 }
 
 // LogAppender appends a new record to the end of the log.
 type LogAppender interface {
-	// Append wraps the given bytes array in a Record and returns the record index or an error
+
+	// Append wraps the given bytes array in a Record and returns the record 
+	// index or an error
 	Append(data []byte) (LogRecord, error)
 }
 
-// LogReader reads a Record at a specific offset
-type LogReader interface {
-	ReadAt(offset int64, limit int64) (LogSlice, error)
+// Cursor allows for quite navigation through the log. All Cursor start at zero
+//  and moves forward until EOF.
+type Cursor interface {
+
+	// Seek moves the Cursor to the given record index.
+	Seek(offset uint64) (LogRecord, error)
+
+	// Next moves the Cursor forward one record.
+	Next() (LogRecord, error)
 }
 
-// LogSlice contains several buffered log records for fast access.
-type LogSlice interface {
-	Get(index int) (LogRecord, error)
-	Size() int
+// LogPipe copies the raw byte stream into the given io.Writer starting at a 
+// record offset and reading up until the given limit.
+type LogPipe interface {
+	Pipe(offset, limit uint64, *io.Writer) error
 }
 
-// LogHeader is at the front of the log file and describes which version the file was written with as well as any boolean flags associated with the file
+// LogHeader is at the front of the log file and describes which version the 
+// file was written with as well as any boolean flags associated with the file
 type LogHeader interface {
 	Version() uint8
 	Flags() uint32
