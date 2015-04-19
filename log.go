@@ -31,6 +31,7 @@ type WriteAheadLog interface {
 	// Creates a new record and appends it to the log.
 	LogAppender
 
+	// Creates a new Cursor initialized at 0
 	Cursor() Cursor
 
 	// Snapshot records the current position of the log file.
