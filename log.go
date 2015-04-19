@@ -18,20 +18,17 @@ const (
 	DefaultRecordFlags uint32 = 0
 
 	// DefaultMaxRecordSize is the default maximum size of a log record.
-	DefaultMaxRecordSize = 0xffffffff
+	DefaultMaxRecordSize = 0xffff
 )
 
 // WriteAheadLog implements an immutable write-ahead log file with indexes and snapshots.
 type WriteAheadLog interface {
 	io.Closer
 
-	// Allows for log records to be read from the log at specific byte offsets.
-	LogPipe
-
 	// Creates a new record and appends it to the log.
 	LogAppender
 
-	// Creates a new Cursor initialized at 0
+	// Creates a new Cursor initialized at index 0
 	Cursor() Cursor
 
 	// Snapshot records the current position of the log file.
@@ -44,6 +41,17 @@ type WriteAheadLog interface {
 	// of the log.
 	Recover() error
 }
+
+// type wal struct {
+// 	index *LogIndex
+// 	writer *io.Writer
+// }
+
+// func (w *wal) Close() error {
+
+// 	// close index file
+// 	w.index.Close()
+// }
 
 // LogAppender appends a new record to the end of the log.
 type LogAppender interface {
@@ -62,12 +70,15 @@ type Cursor interface {
 
 	// Next moves the Cursor forward one record.
 	Next() (LogRecord, error)
+
+	// Close cursor and any associates file handles
+	Close() error
 }
 
 // LogPipe copies the raw byte stream into the given io.Writer starting at a 
 // record offset and reading up until the given limit.
 type LogPipe interface {
-	Pipe(offset, limit uint64, *io.Writer) error
+	Pipe(offset, limit uint64, writer *io.Writer) error
 }
 
 // LogHeader is at the front of the log file and describes which version the 
@@ -80,10 +91,26 @@ type LogHeader interface {
 // LogRecord describes a single item in the log file. It consists of a time, an
 // index id, a length and the data.
 type LogRecord interface {
+
+	// Returns LogRecord as a byte array
+	encoding.BinaryMarshaler
+
+	// Converts a byte array into a LogRecord
+	encoding.BinaryUnmarshaler
+
+	// Size returns the size of the record data
 	Size() uint32
+
+	// Flags returns any boolean flags associated
 	Flags() uint32
+
+	// Time returns the record timestamp
 	Time() int64
+
+	// Index returns the record offset in the log
 	Index() uint64
+
+	// Data returns record data
 	Data() []byte
 }
 

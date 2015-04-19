@@ -10,33 +10,6 @@ import (
 	"github.com/eliquious/xbinary"
 )
 
-var (
-	// ErrReadIndexHeader occurs when the index header cannot be read
-	ErrReadIndexHeader = errors.New("failed to read index header")
-
-	// ErrWriteIndexHeader occurs when the index header cannot be written
-	ErrWriteIndexHeader = errors.New("failed to write index header")
-
-	// ErrSliceOutOfBounds occurs when index.Slice is called and the offset is larger than the size of the index.
-	ErrSliceOutOfBounds = errors.New("read offset out of bounds")
-
-	// ErrReadIndex occurs when index.Slice fails to read the records
-	ErrReadIndex = errors.New("failed to read index records")
-)
-
-const (
-	// FlagsDefault is the default boolean flags for an index file
-	DefaultIndexFlags = 0
-
-	// VersionOne is an integer denoting the first version
-	VersionOne                = 1
-	VersionOneIndexHeaderSize = 8
-	VersionOneIndexRecordSize = 24
-
-	// MaximumIndexSlice is the maximum number of index records to be read at one time
-	MaximumIndexSlice = 32000
-)
-
 // IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.
 type IndexFactory interface {
 	GetOrCreateIndex(flags uint32) (*LogIndex, error)
@@ -52,8 +25,9 @@ type LogIndex interface {
 	Close() error
 }
 
-// IndexHeader describes which version the index file was written with. Flags represents boolean flags.
-type IndexHeader interface {
+// FileHeader describes which version the file was written with. Flags 
+// represents boolean flags.
+type FileHeader interface {
 	Version() uint8
 	Flags() uint32
 }
@@ -93,19 +67,19 @@ func (i BasicIndexRecord) Offset() int64 {
 	return i.offset
 }
 
-// BasicIndexHeader is the simplest implementation of the IndexHeader interface.
-type BasicIndexHeader struct {
+// BasicFileHeader is the simplest implementation of the FileHeader interface.
+type BasicFileHeader struct {
 	version uint8
 	flags   uint32
 }
 
 // Version returns the file version.
-func (i BasicIndexHeader) Version() uint8 {
+func (i BasicFileHeader) Version() uint8 {
 	return i.version
 }
 
-// Flags returns the boolean flags for the index file.
-func (i BasicIndexHeader) Flags() uint32 {
+// Flags returns the boolean flags for the file.
+func (i BasicFileHeader) Flags() uint32 {
 	return i.flags
 }
 
@@ -150,7 +124,12 @@ type VersionOneIndexFactory struct {
 	Filename string
 }
 
-// GetOrCreateIndex either creates a new file or reads from an existing index file.
+// GetOrCreateIndex either creates a new file or reads from an existing index 
+// file.
+// 
+// VersionOneLogHeader starts with a 3-byte string, "IDX", followed by an 8-bit 
+// version. After the version, a uint32 represents the boolean flags.
+// The records start immediately following the bit flags.
 func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error) {
 
 	// try to open index file, return error on fail
@@ -168,7 +147,7 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 
 	// get header, close file and return on error
 	buf := make([]byte, VersionOneIndexHeaderSize)
-	var header BasicIndexHeader
+	var header BasicFileHeader
 	var size uint64
 
 	// if file already has header
@@ -194,7 +173,7 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 		}
 
 		// create header
-		header = BasicIndexHeader{flags: flags, version: buf[3]}
+		header = BasicFileHeader{flags: flags, version: buf[3]}
 
 		size = (uint64(stat.Size()) - uint64(VersionOneIndexHeaderSize)) / uint64(VersionOneIndexRecordSize)
 	} else {
@@ -217,9 +196,12 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 
 		// flush data to disk
 		err = file.Sync()
+        if err != nil {
+            return nil, ErrWriteIndexHeader
+        }
 
 		// create index header
-		header = BasicIndexHeader{VersionOne, flags}
+		header = BasicFileHeader{VersionOne, flags}
 
 	}
 
@@ -240,7 +222,7 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 type VersionOneIndexFile struct {
 	fd     *os.File
 	writer *bufio.Writer
-	header BasicIndexHeader
+	header BasicFileHeader
 	mutex  sync.Mutex
 	extbuf xbinary.ExtendedBuffer
 	size   *uint64
