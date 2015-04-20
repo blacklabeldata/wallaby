@@ -1,6 +1,7 @@
 package wallaby
 
 import (
+	"encoding"
 	"errors"
 	"io"
 
@@ -37,7 +38,7 @@ type WriteAheadLog interface {
 	// Metadata returns meta data of the log file.
 	Metadata() (Metadata, error)
 
-	// Recover should be called when the log is opened to verify consistency 
+	// Recover should be called when the log is opened to verify consistency
 	// of the log.
 	Recover() error
 }
@@ -56,7 +57,7 @@ type WriteAheadLog interface {
 // LogAppender appends a new record to the end of the log.
 type LogAppender interface {
 
-	// Append wraps the given bytes array in a Record and returns the record 
+	// Append wraps the given bytes array in a Record and returns the record
 	// index or an error
 	Append(data []byte) (LogRecord, error)
 }
@@ -75,13 +76,13 @@ type Cursor interface {
 	Close() error
 }
 
-// LogPipe copies the raw byte stream into the given io.Writer starting at a 
+// LogPipe copies the raw byte stream into the given io.Writer starting at a
 // record offset and reading up until the given limit.
 type LogPipe interface {
 	Pipe(offset, limit uint64, writer *io.Writer) error
 }
 
-// LogHeader is at the front of the log file and describes which version the 
+// LogHeader is at the front of the log file and describes which version the
 // file was written with as well as any boolean flags associated with the file
 type LogHeader interface {
 	Version() uint8
@@ -169,7 +170,7 @@ func (r VersionOneLogRecord) Data() []byte {
 }
 
 // MarshalBinary encodes the entire record in a byte array.
-func (r *VersionOneLogRecord) MarshalBinary() ([]byte, error) {
+func (r VersionOneLogRecord) MarshalBinary() ([]byte, error) {
 
 	// create header buffer
 	buffer := make([]byte, 24+r.size)
@@ -192,7 +193,7 @@ func (r *VersionOneLogRecord) MarshalBinary() ([]byte, error) {
 	return buffer, nil
 }
 
-func (r *VersionOneLogRecord) UnmarshalBinary(buffer []byte) error {
+func (r VersionOneLogRecord) UnmarshalBinary(buffer []byte) error {
 	if len(buffer) < 24 {
 		return ErrInvalidRecordSize
 	}

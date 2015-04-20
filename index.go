@@ -2,7 +2,6 @@ package wallaby
 
 import (
 	"bufio"
-	"errors"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -18,14 +17,14 @@ type IndexFactory interface {
 // LogIndex maintains a list of all the records in the log file. IndexRecords
 type LogIndex interface {
 	Size() (uint64, error)
-	Header() (IndexHeader, error)
+	Header() (FileHeader, error)
 	Append(record IndexRecord) (n int, err error)
 	Slice(offset int64, limit int64) (IndexSlice, error)
 	Flush() error
 	Close() error
 }
 
-// FileHeader describes which version the file was written with. Flags 
+// FileHeader describes which version the file was written with. Flags
 // represents boolean flags.
 type FileHeader interface {
 	Version() uint8
@@ -124,10 +123,10 @@ type VersionOneIndexFactory struct {
 	Filename string
 }
 
-// GetOrCreateIndex either creates a new file or reads from an existing index 
+// GetOrCreateIndex either creates a new file or reads from an existing index
 // file.
-// 
-// VersionOneLogHeader starts with a 3-byte string, "IDX", followed by an 8-bit 
+//
+// VersionOneLogHeader starts with a 3-byte string, "IDX", followed by an 8-bit
 // version. After the version, a uint32 represents the boolean flags.
 // The records start immediately following the bit flags.
 func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error) {
@@ -196,9 +195,9 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 
 		// flush data to disk
 		err = file.Sync()
-        if err != nil {
-            return nil, ErrWriteIndexHeader
-        }
+		if err != nil {
+			return nil, ErrWriteIndexHeader
+		}
 
 		// create index header
 		header = BasicFileHeader{VersionOne, flags}
@@ -301,7 +300,7 @@ func (i VersionOneIndexFile) Size() (uint64, error) {
 }
 
 // Header returns the file header which describes the index file.
-func (i VersionOneIndexFile) Header() (IndexHeader, error) {
+func (i VersionOneIndexFile) Header() (FileHeader, error) {
 	return i.header, nil
 }
 

@@ -1,8 +1,12 @@
 package wallaby
 
-import "time"
+import (
+    "sync"
+    "time"
+)
 import "os"
 import "errors"
+import "github.com/eliquious/xbinary"
 
 var (
     // ErrReadIndexHeader occurs when the index header cannot be read
@@ -51,18 +55,15 @@ const (
 
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a CRC64 of all the log entries.
 type Snapshot interface {
-	Time() time.Time
-	Size() uint64
-	Hash() uint64
+    Time() time.Time
+    Size() uint64
+    Hash() uint64
 }
 
-//
+// Metadata simply contains descriptive information aboutt the log
 type Metadata struct {
-	MaxIndex         int64
-	IndexSize        int64
-	StorageSize      int64
-	LastModifiedTime int64
-	CRC64            uint64
+    Size             int64
+    LastModifiedTime int64
 }
 
 // Config stores several log settings.
@@ -74,17 +75,17 @@ type Config struct {
 }
 
 // DefaultConfig will be used if the given config is nil.
-const DefaultConfig := Config{
-    FileMode: 0600,
+var DefaultConfig Config = Config{
+    FileMode:      0600,
     MaxRecordSize: DefaultMaxRecordSize,
-    Flags: DefaultRecordFlags,
-    Version: VersionOne
+    Flags:         DefaultRecordFlags,
+    Version:       VersionOne,
 }
 
 func Open(filename string, config Config) (WriteAheadLog, error) {
 
     // return error if config is nil
-    if config == nil {
+    if &config == nil {
         return nil, ErrConfigRequired
     }
 
@@ -138,7 +139,22 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
         case VersionOne:
 
             // create version one log file
-            log = &VersionOneLogFile{}
+            factory := VersionOneIndexFactory{filename + ".idx"}
+            index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+            if err != nil {
+                return nil, err
+            }
+
+            record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
+
+            var lock sync.Mutex
+            stat, err := file.Stat()
+            if err != nil {
+                return nil, err
+            }
+            size := stat.Size()
+
+            log = &VersionOneLogFile{lock, file, &header, index, record_factory, config.Flags, int64(size)}
         default:
             return nil, ErrInvalidFileVersion
         }
@@ -171,9 +187,16 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
             }
 
             // create index header
-            header = BasicFileHeader{VersionOne, flags}
+            header = BasicFileHeader{VersionOne, config.Flags}
+            factory := VersionOneIndexFactory{filename + ".idx"}
+            index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+            record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
 
-            log = &VersionOneLogFile{file, header}
+            var lock sync.Mutex
+            stat, err := file.Stat()
+            size := stat.Size()
+
+            log = &VersionOneLogFile{lock, file, &header, index, record_factory, config.Flags, int64(size)}
         default:
             return nil, ErrInvalidFileVersion
         }
@@ -183,19 +206,19 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
     return log, nil
 }
 
-
 // VersionOneLogFile
 type VersionOneLogFile struct {
-    fd *os.File
-    header *FileHeader
-    index *LogIndex
+    lock    sync.Mutex
+    fd      *os.File
+    header  FileHeader
+    index   LogIndex
     factory VersionOneLogRecordFactory
-    flags uint32
+    flags   uint32
+    size    int64
 }
 
-
 func (v *VersionOneLogFile) Append(data []byte) (LogRecord, error) {
-    index, err := index.Size()
+    index, err := v.index.Size()
     if err != nil {
         return nil, ErrWriteLogRecord
     }
@@ -206,23 +229,40 @@ func (v *VersionOneLogFile) Append(data []byte) (LogRecord, error) {
         return nil, ErrWriteLogRecord
     }
 
+    // binary record
+    buffer, err := record.MarshalBinary()
+    if err != nil {
+        return nil, err
+    }
+
     // v.fd.Write()
+    _, err = v.fd.Write(buffer)
+    if err != nil {
+        return nil, err
+    }
+
+    v.size += int64(len(buffer))
+    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size)})
+
+    // return newly created record
+    return record, nil
 }
 
 func (v *VersionOneLogFile) Cursor() Cursor {
-    
+    return nil
 }
 
 func (v *VersionOneLogFile) Snapshot() (Snapshot, error) {
-    
+    return nil, nil
 }
 
 func (v *VersionOneLogFile) Metadata() (Metadata, error) {
-    
+    meta := Metadata{}
+    return meta, nil
 }
 
 func (v *VersionOneLogFile) Recover() error {
-    
+    return nil
 }
 
 // Close closes the underlying file.
@@ -235,5 +275,5 @@ func (v *VersionOneLogFile) Close() error {
     }
 
     // close file handle
-    v.fd.Close()
+    return v.fd.Close()
 }
