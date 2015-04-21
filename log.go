@@ -22,40 +22,80 @@ const (
 	DefaultMaxRecordSize = 0xffff
 )
 
-// WriteAheadLog implements an immutable write-ahead log file with indexes and snapshots.
+// State is used to maintain the current status of the log.
+type State uint8
+
+// CLOSED represents a closed log file
+const CLOSED State = 0
+
+// OPEN signifies the log is currently open
+const OPEN State = 1
+
+// WriteAheadLog implements an immutable write-ahead log file with indexes and
+// snapshots.
 type WriteAheadLog interface {
+
+	// Closer allows the log to be closed
 	io.Closer
 
 	// Creates a new record and appends it to the log.
-	LogAppender
+	Appender
 
-	// Creates a new Cursor initialized at index 0
-	Cursor() Cursor
+	// Recoverable allows the log to be recovered upon crash
+	Recoverable
+
+	// Cursable allows cursors to be created.
+	Cursable
+
+	// Stateful allows the state of the log to be retrieved.
+	Stateful
+
+	// Opener opens the log for appending. Prior to this call the log state
+	// should be CLOSED. Once this is called State() should return OPEN.
+	Opener
+
+	// Use provides middleware for the internal io.Writer
+	Use(...DecorativeWriteCloser)
+
+	// Piper allows log records to be transferred to another writer.
+	Piper
 
 	// Snapshot records the current position of the log file.
 	Snapshot() (Snapshot, error)
 
 	// Metadata returns meta data of the log file.
 	Metadata() (Metadata, error)
+}
 
+// DecorativeWriteCloser allows for middleware around the internal file writer.
+type DecorativeWriteCloser func(io.WriteCloser) io.WriteCloser
+
+// Opener is the interface for Open. Open makes the log available for writing.
+type Opener interface {
+	Open() error
+}
+
+// Stateful is the interface for the State method. State returns the current
+// state of the log file.
+type Stateful interface {
+	State() State
+}
+
+// Recoverable is the interface which wraps the Recover method. Recover should
+// return the log to a stable state.
+type Recoverable interface {
 	// Recover should be called when the log is opened to verify consistency
 	// of the log.
 	Recover() error
 }
 
-// type wal struct {
-// 	index *LogIndex
-// 	writer *io.Writer
-// }
+type Cursable interface {
+	// Creates a new Cursor initialized at index 0
+	Cursor() Cursor
+}
 
-// func (w *wal) Close() error {
-
-// 	// close index file
-// 	w.index.Close()
-// }
-
-// LogAppender appends a new record to the end of the log.
-type LogAppender interface {
+// Appender appends a new record to the end of the log.
+type Appender interface {
 
 	// Append wraps the given bytes array in a Record and returns the record
 	// index or an error
@@ -76,10 +116,10 @@ type Cursor interface {
 	Close() error
 }
 
-// LogPipe copies the raw byte stream into the given io.Writer starting at a
+// Piper copies the raw byte stream into the given io.Writer starting at a
 // record offset and reading up until the given limit.
-type LogPipe interface {
-	Pipe(offset, limit uint64, writer *io.Writer) error
+type Piper interface {
+	Pipe(offset, limit uint64, writer io.Writer) error
 }
 
 // LogHeader is at the front of the log file and describes which version the

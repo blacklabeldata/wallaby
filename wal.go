@@ -1,6 +1,7 @@
 package wallaby
 
 import (
+    "io"
     "sync"
     "time"
 )
@@ -43,7 +44,7 @@ const (
 
     // VersionOne is an integer denoting the first version
     VersionOne                = 1
-    VersionOneIndexHeaderSize = 8
+    VersionOneIndexHeaderSize = 4
     VersionOneIndexRecordSize = 24
 
     // VersionOneLogHeaderSize is the header size of version 1 log files
@@ -51,6 +52,9 @@ const (
 
     // MaximumIndexSlice is the maximum number of index records to be read at one time
     MaximumIndexSlice = 32000
+
+    // HeaderOffset is the minimum number of bytes in the file before version headers begin.
+    HeaderOffset = 4
 )
 
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a CRC64 of all the log entries.
@@ -64,6 +68,8 @@ type Snapshot interface {
 type Metadata struct {
     Size             int64
     LastModifiedTime int64
+    FileName         string
+    IndexFileName    string
 }
 
 // Config stores several log settings.
@@ -82,7 +88,77 @@ var DefaultConfig Config = Config{
     Version:       VersionOne,
 }
 
-func Open(filename string, config Config) (WriteAheadLog, error) {
+// Creates
+func createVersionOne(file *os.File, filename string, config Config) (WriteAheadLog, error) {
+
+    // create boolean flags
+    var flags uint32
+
+    // read file size
+    stat, err := file.Stat()
+    if err != nil {
+        return nil, err
+    }
+    size := stat.Size()
+
+    // create header buf
+    buf := make([]byte, VersionOneIndexHeaderSize)
+
+    // determine if it's a new file or not
+    // By this point, the file is gauranteed to have at least 4 bytes.
+    if size > HeaderOffset {
+        // read file header, close and return upon error
+        _, err := file.ReadAt(buf, HeaderOffset)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+
+        // read flags
+        f, err := xbinary.LittleEndian.Uint32(buf, VersionOneIndexHeaderSize)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+        flags = f
+    } else {
+
+        // write boolean flags into header buffer
+        xbinary.LittleEndian.PutUint32(buf, 0, config.Flags)
+
+        // write version header to file
+        _, err := file.Write(buf)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+
+        // flush data to disk
+        err = file.Sync()
+        if err != nil {
+            return nil, ErrWriteLogHeader
+        }
+    }
+
+    // create header
+    header := BasicFileHeader{flags: flags, version: VersionOne}
+
+    // create version one log file
+    factory := VersionOneIndexFactory{filename + ".idx"}
+    record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
+    index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+    if err != nil {
+        file.Close()
+        return nil, err
+    }
+
+    var lock sync.Mutex
+    log := &VersionOneLogFile{lock, file, file, &header, index, record_factory, config.Flags, int64(size), CLOSED}
+
+    return log, nil
+}
+
+func New(filename string, config Config) (WriteAheadLog, error) {
 
     // return error if config is nil
     if &config == nil {
@@ -90,7 +166,7 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
     }
 
     // try to open log file, return error on fail
-    file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
+    file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, config.FileMode)
     if err != nil {
         return nil, err
     }
@@ -103,100 +179,58 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
     }
 
     // get header, close file and return on error
-    buf := make([]byte, VersionOneLogHeaderSize)
+    buf := make([]byte, 4)
 
     // create header and log
-    var header BasicFileHeader
+    // var header BasicFileHeader
     var log WriteAheadLog
 
     // if file already has header
-    if stat.Size() >= VersionOneLogHeaderSize {
+    if stat.Size() >= HeaderOffset {
 
         // read file header, close and return upon error
-        n, err := file.ReadAt(buf, 0)
-        if err != nil {
-            file.Close()
-            return nil, err
-
-            // failed to read entire header
-        } else if n != VersionOneLogHeaderSize {
-            file.Close()
-            return nil, ErrReadIndexHeader
-        }
-
-        // read flags
-        flags, err := xbinary.LittleEndian.Uint32(buf, 4)
+        _, err := file.ReadAt(buf, 0)
         if err != nil {
             file.Close()
             return nil, err
         }
-
-        // create header
-        header = BasicFileHeader{flags: flags, version: buf[3]}
 
         // read version
-        switch header.Version() {
+        switch buf[3] {
         case VersionOne:
 
-            // create version one log file
-            factory := VersionOneIndexFactory{filename + ".idx"}
-            index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
-            if err != nil {
-                return nil, err
-            }
+            return createVersionOne(file, filename, config)
 
-            record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
-
-            var lock sync.Mutex
-            stat, err := file.Stat()
-            if err != nil {
-                return nil, err
-            }
-            size := stat.Size()
-
-            log = &VersionOneLogFile{lock, file, &header, index, record_factory, config.Flags, int64(size)}
         default:
             return nil, ErrInvalidFileVersion
         }
     } else {
 
+        // write magic string
+        xbinary.LittleEndian.PutString(buf, 0, "LOG")
+
+        // write version
+        buf[3] = byte(VersionOne)
+
+        // write index header to file
+        _, err := file.Write(buf)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
+
+        // flush data to disk
+        err = file.Sync()
+        if err != nil {
+            return nil, ErrWriteLogHeader
+        }
+
         // create new log file
         switch config.Version {
         case VersionOne:
 
-            // write magic string
-            xbinary.LittleEndian.PutString(buf, 0, "LOG")
+            return createVersionOne(file, filename, config)
 
-            // write version
-            buf[3] = byte(VersionOne)
-
-            // write boolean flags
-            xbinary.LittleEndian.PutUint32(buf, 4, config.Flags)
-
-            // write index header to file
-            _, err := file.Write(buf)
-            if err != nil {
-                file.Close()
-                return nil, err
-            }
-
-            // flush data to disk
-            err = file.Sync()
-            if err != nil {
-                return nil, ErrWriteLogHeader
-            }
-
-            // create index header
-            header = BasicFileHeader{VersionOne, config.Flags}
-            factory := VersionOneIndexFactory{filename + ".idx"}
-            index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
-            record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
-
-            var lock sync.Mutex
-            stat, err := file.Stat()
-            size := stat.Size()
-
-            log = &VersionOneLogFile{lock, file, &header, index, record_factory, config.Flags, int64(size)}
         default:
             return nil, ErrInvalidFileVersion
         }
@@ -208,13 +242,55 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
 
 // VersionOneLogFile
 type VersionOneLogFile struct {
-    lock    sync.Mutex
-    fd      *os.File
-    header  FileHeader
-    index   LogIndex
-    factory VersionOneLogRecordFactory
-    flags   uint32
-    size    int64
+    lock        sync.Mutex
+    fd          *os.File
+    writeCloser io.WriteCloser
+    header      FileHeader
+    index       LogIndex
+    factory     VersionOneLogRecordFactory
+    flags       uint32
+    size        int64
+    state       State
+}
+
+func (v *VersionOneLogFile) Open() error {
+    v.state = OPEN
+    return nil
+}
+
+func (v *VersionOneLogFile) Pipe(offset, limit uint64, writer io.Writer) error {
+    // create cursor
+    cur := v.Cursor()
+
+    // iterate over requested record range
+    for record, err := cur.Seek(offset); err != nil && record.Index() < limit+offset; record, err = cur.Next() {
+
+        // marshal record into a buffer
+        data, e := record.MarshalBinary()
+        if e != nil {
+            return e
+        }
+
+        // write data
+        _, e = writer.Write(data)
+        if e != nil {
+            return e
+        }
+    }
+
+    return cur.Close()
+}
+
+func (v *VersionOneLogFile) State() State {
+    return v.state
+}
+
+func (v *VersionOneLogFile) Use(writers ...DecorativeWriteCloser) {
+    if v.state == CLOSED {
+        for _, writer := range writers {
+            v.writeCloser = writer(v.writeCloser)
+        }
+    }
 }
 
 func (v *VersionOneLogFile) Append(data []byte) (LogRecord, error) {
@@ -267,6 +343,8 @@ func (v *VersionOneLogFile) Recover() error {
 
 // Close closes the underlying file.
 func (v *VersionOneLogFile) Close() error {
+    // Set state as CLOSED
+    v.state = CLOSED
 
     // sync any last changes to disk
     err := v.fd.Sync()
