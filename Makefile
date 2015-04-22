@@ -10,6 +10,12 @@ test:
 	@echo "------------------"
 	@go test -coverprofile=$(CWD)/coverage.out
 
+docs:
+	@echo "------------------"
+	@echo " docs"
+	@echo "------------------"
+	@groc --github
+
 bench:
 	@echo "------------------"
 	@echo " benchmark"
