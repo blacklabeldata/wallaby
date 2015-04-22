@@ -1,0 +1,4 @@
+{
+  "glob": ["*.go", "README.md"],
+  "github": true
+}
