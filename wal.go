@@ -25,16 +25,19 @@ var (
     // - `ErrWriteLogHeader` occurs when the log header cannot be written
     ErrWriteLogHeader = errors.New("failed to write log header")
 
-    // - `ErrSliceOutOfBounds` occurs when index.Slice is called and the offset is larger than the size of the index.
+    // - `ErrSliceOutOfBounds` occurs when index.Slice is called and the offset
+    // is larger than the size of the index.
     ErrSliceOutOfBounds = errors.New("read offset out of bounds")
 
     // - `ErrReadIndex` occurs when index.Slice fails to read the records
     ErrReadIndex = errors.New("failed to read index records")
 
-    // - `ErrConfigRequired` occurs when no log config is given when creating or opening a log file.
+    // - `ErrConfigRequired` occurs when no log config is given when creating
+    // or opening a log file.
     ErrConfigRequired = errors.New("log config required")
 
-    // - `ErrInvalidFileVersion` occurs when the version in the file header is unrecognized.
+    // - `ErrInvalidFileVersion` occurs when the version in the file header
+    // is unrecognized.
     ErrInvalidFileVersion = errors.New("invalid file version")
 
     // - `ErrInvalidFileSignature` occurs when the signature in the file header
@@ -43,6 +46,9 @@ var (
 
     // - `ErrWriteLogRecord` occurs when a record fails to be written to the log
     ErrWriteLogRecord = errors.New("failed to write record")
+
+    // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened agan
+    ErrLogAlreadyOpen = errors.New("log already open")
 
     // ## **Log Variables**
     // File signature bytes
@@ -149,8 +155,12 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
     }
 }
 
+// ## **Version One Log File**
 //
-// versionOneLogFile
+// `versionOneLogFile` is obviously v1 of the WAL. It is the first class which
+// implements the `WriteAheadLog` interface. However, it is not a public
+// type. Wallaby strives to maintain a clean API and hence uses interfaces to
+// abstract specific implementations.
 type versionOneLogFile struct {
     lock        sync.Mutex
     fd          *os.File
@@ -163,40 +173,68 @@ type versionOneLogFile struct {
     state       State
 }
 
+// `Open` simply switches the state to `OPEN`. If the log is already open, the
+// error `ErrLogAlreadyOpen` is returned.
 func (v *versionOneLogFile) Open() error {
+    if v.state == OPEN {
+        return ErrLogAlreadyOpen
+    }
+
     v.state = OPEN
     return nil
 }
 
+// `Pipe` will read a `limited` number of the log records beginning at the
+// `offset` given. All the these records will be serialized into a byte array
+// and written to the given `io.Writer`. If there was an error either converting
+// the record or writing to the given `io.Writer`, the encountered error will be
+// returned.
 func (v *versionOneLogFile) Pipe(offset, limit uint64, writer io.Writer) error {
-    // create cursor
-    cur := v.Cursor()
 
-    // iterate over requested record range
+    // Create a new record cursor, closing it when exiting the function.
+    cur := v.Cursor()
+    defer cur.Close()
+
+    // Seek to the given `offset` and read the records until the number of
+    // requested records are read or an error occurs.
     for record, err := cur.Seek(offset); err != nil && record.Index() < limit+offset; record, err = cur.Next() {
 
-        // marshal record into a buffer
+        // Marshal the record into a byte array returning the error if there
+        // is one.
         data, e := record.MarshalBinary()
         if e != nil {
             return e
         }
 
-        // write data
+        // Write the byte array to the given `writer` returning the error if
+        // there is one.
         _, e = writer.Write(data)
         if e != nil {
             return e
         }
     }
 
-    return cur.Close()
+    // Success. Return a `nil` error.
+    return nil
 }
 
+// `State` allows the log state to be queried by returning the current state of
+// the log.
 func (v *versionOneLogFile) State() State {
     return v.state
 }
 
+// `Use` allows middleware to modify the log's behavior. `DecorativeWriteClosers`
+// are the vehicle while makes this possible. They wrap the internal writer
+// with additional capabilities such as using different buffering strategies.
 func (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
+
+    // Only apply the middleware is the log is `CLOSED`. The log remains
+    // in this state until `Open` is called.
     if v.state == CLOSED {
+
+        // Iterate over all the `DecorativeWriteClosers` replacing the internal
+        // writer with the new one.
         for _, writer := range writers {
             v.writeCloser = writer(v.writeCloser)
         }
