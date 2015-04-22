@@ -1,4 +1,5 @@
 {
   "glob": ["*.go", "README.md"],
-  "github": true
+  "style": "Pojoaque",
+  "github": false
 }
