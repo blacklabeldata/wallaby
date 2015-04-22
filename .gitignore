@@ -1,0 +1,4 @@
+coverage*
+wallaby.sublime*
+tests/
+doc/

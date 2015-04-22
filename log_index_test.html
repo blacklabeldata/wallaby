@@ -1,0 +1,164 @@
+<!DOCTYPE html><html lang="en"><head><title>log_index_test</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="log_index_test"><meta name="groc-project-path" content="log_index_test.go"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/log_index_test.go">log_index_test.go</a></div></div><div id="document"><div class="segment"><div class="code"><div class="wrapper"><span class="hljs-keyword">package</span> wallaby
+
+<span class="hljs-keyword">import</span> (
+	<span class="hljs-string">"os"</span>
+	<span class="hljs-string">"path/filepath"</span>
+	<span class="hljs-string">"testing"</span>
+	<span class="hljs-string">"time"</span>
+
+	<span class="hljs-string">"github.com/stretchr/testify/assert"</span>
+)
+
+<span class="hljs-keyword">func</span> createTestDir(t *testing.T) <span class="hljs-typename">string</span> {
+	dir := <span class="hljs-string">"./tests"</span>
+	err := os.MkdirAll(dir, os.ModeDir|<span class="hljs-number">0700</span>)
+	assert.Nil(t, err, <span class="hljs-string">"Test dir could not be created"</span>)
+	<span class="hljs-keyword">return</span> dir
+}
+
+<span class="hljs-keyword">func</span> TestIndexRecord(t *testing.T) {
+	now := time.Now()
+
+	unix := now.UnixNano()
+	index, offset := <span class="hljs-typename">uint64</span>(<span class="hljs-number">0</span>), <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>)
+	ir := BasicIndexRecord{unix, index, offset}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>time</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, unix, ir.Time())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>index</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, index, ir.Index())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, offset, ir.Offset())
+}
+
+<span class="hljs-keyword">func</span> TestIndexHeader(t *testing.T) {
+
+	<span class="hljs-keyword">var</span> version <span class="hljs-typename">uint8</span> = <span class="hljs-number">128</span>
+	<span class="hljs-keyword">var</span> flags <span class="hljs-typename">uint32</span> = <span class="hljs-number">0x377</span>
+	ih := BasicIndexHeader{version, flags}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>version</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, version, ih.Version())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>flags</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, flags, ih.Flags())
+}
+
+<span class="hljs-keyword">func</span> TestVersionOneCreateIndex(t *testing.T) {
+	dir := createTestDir(t)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"test001.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		t.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+
+	assert.NotNil(t, index, <span class="hljs-string">"Index file could not be created"</span>)
+	assert.Nil(t, err, <span class="hljs-string">"CreateIndex produced an error"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>stat file header size</p></div></div><div class="code"><div class="wrapper">	info, err := os.Stat(indexfile)
+	assert.Nil(t, err, <span class="hljs-string">"os.Stat call resulted in error"</span>)
+	<span class="hljs-keyword">if</span> info.Size() != <span class="hljs-number">8</span> {
+		t.Errorf(<span class="hljs-string">"Invalid header size"</span>)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test header</p></div></div><div class="code"><div class="wrapper">	header, err := index.Header()
+	assert.Equal(t, <span class="hljs-number">1</span>, header.Version())
+	assert.Equal(t, <span class="hljs-typename">uint32</span>(DefaultIndexFlags), header.Flags())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test Size</p></div></div><div class="code"><div class="wrapper">	size, err := index.Size()
+	assert.Equal(t, <span class="hljs-number">0</span>, size)
+}
+
+<span class="hljs-keyword">func</span> TestVersionOneCreateIndexExisting(t *testing.T) {
+	dir := createTestDir(t)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"test002.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		t.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index.Close()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>re-open file</p></div></div><div class="code"><div class="wrapper">	index, err = factory.GetOrCreateIndex(DefaultIndexFlags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test header</p></div></div><div class="code"><div class="wrapper">	header, err := index.Header()
+	assert.Equal(t, <span class="hljs-number">1</span>, header.Version())
+	assert.Equal(t, <span class="hljs-typename">uint32</span>(DefaultIndexFlags), header.Flags())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test Size</p></div></div><div class="code"><div class="wrapper">	size, err := index.Size()
+	assert.Equal(t, <span class="hljs-number">0</span>, size)
+}
+
+<span class="hljs-keyword">func</span> TestVersionOneAppend(t *testing.T) {
+	dir := createTestDir(t)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"test003.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		t.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test index file</p></div></div><div class="code"><div class="wrapper">	assert.NotNil(t, index, <span class="hljs-string">"Index file could not be created"</span>)
+	assert.Nil(t, err, <span class="hljs-string">"CreateIndex produced an error"</span>)
+
+	unix := time.Now().UnixNano()
+	i, offset := <span class="hljs-typename">uint64</span>(<span class="hljs-number">0</span>), <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>)
+	record := BasicIndexRecord{unix, i, offset}
+	n, err := index.Append(record)
+	assert.Equal(t, VersionOneIndexRecordSize, n, <span class="hljs-string">"Invalid index record size"</span>)
+
+	size, _ := index.Size()
+	assert.Equal(t, <span class="hljs-number">1</span>, size)
+
+	<span class="hljs-keyword">for</span> i := <span class="hljs-number">2</span>; i &lt; <span class="hljs-number">10</span>; i++ {
+		unix = time.Now().UnixNano()
+		offset = <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>)
+		record := BasicIndexRecord{unix, <span class="hljs-typename">uint64</span>(i + <span class="hljs-number">1</span>), offset}
+		n, err := index.Append(record)
+		assert.Equal(t, VersionOneIndexRecordSize, n, <span class="hljs-string">"Invalid index record size"</span>)
+		assert.Nil(t, err)
+
+		size, _ := index.Size()
+		assert.Equal(t, i, size)
+	}
+}
+
+<span class="hljs-keyword">func</span> TestVersionOneSlice(t *testing.T) {
+	dir := createTestDir(t)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"test004.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		t.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset out of range</p></div></div><div class="code"><div class="wrapper">	slice, err := index.Slice(<span class="hljs-number">1</span>, <span class="hljs-number">1</span>)
+	assert.Nil(t, slice, <span class="hljs-string">"Slice should be nil for invalid offset"</span>)
+	assert.NotNil(t, err, <span class="hljs-string">"Expected ErrSliceOufOfBounds"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset out of range</p></div></div><div class="code"><div class="wrapper">	slice, err = index.Slice(<span class="hljs-number">0</span>, <span class="hljs-number">1</span>)
+	assert.Nil(t, slice, <span class="hljs-string">"Slice should be nil for invalid offset"</span>)
+	assert.NotNil(t, err, <span class="hljs-string">"Expected ErrSliceOufOfBounds"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>limit out of range</p></div></div><div class="code"><div class="wrapper">	slice, err = index.Slice(<span class="hljs-number">1</span>, <span class="hljs-number">0</span>)
+	assert.Nil(t, slice, <span class="hljs-string">"Slice should be nil for invalid limit"</span>)
+	assert.NotNil(t, err, <span class="hljs-string">"Expected ErrSliceOufOfBounds"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>append records</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">100</span>; i++ {
+		unix := time.Now().UnixNano()
+		offset := <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>*i + <span class="hljs-number">8</span>)
+		record := BasicIndexRecord{unix, <span class="hljs-typename">uint64</span>(i), offset}
+		index.Append(record)
+	}
+	index.Flush()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read Slice</p></div></div><div class="code"><div class="wrapper">	slice, err = index.Slice(<span class="hljs-number">0</span>, <span class="hljs-number">5</span>)
+	assert.Equal(t, <span class="hljs-number">5</span>, slice.Size(), <span class="hljs-string">"Slice should contain 5 index records"</span>)
+
+	<span class="hljs-keyword">var</span> unix <span class="hljs-typename">int64</span>
+	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; slice.Size(); i++ {
+		record, err := slice.Get(i)
+		assert.Nil(t, err, <span class="hljs-string">"Get should not produce an error"</span>)
+
+		assert.Equal(t, <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>*i+<span class="hljs-number">8</span>), record.Offset(), <span class="hljs-string">"Record offset should equal 24"</span>)
+		assert.Equal(t, <span class="hljs-typename">uint64</span>(i), record.Index(), <span class="hljs-string">"Invalid record index"</span>)
+		assert.True(t, record.Time() &gt; unix, <span class="hljs-string">"Each record's time should be greater than the last"</span>)
+		unix = record.Time()
+
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>close file</p></div></div><div class="code"><div class="wrapper">	index.Close()
+}
+
+<span class="hljs-keyword">func</span> BenchmarkIndexAdd(b *testing.B) {
+
+	dir := <span class="hljs-string">"./tests"</span>
+	os.MkdirAll(dir, os.ModeDir|<span class="hljs-number">0700</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"bench001.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		b.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>var unix, offset int64</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> record BasicIndexRecord
+	b.ResetTimer()
+	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; b.N; i++ {
+		record.nanos = time.Now().UnixNano()
+		record.index = <span class="hljs-typename">uint64</span>(i)
+		index.Append(record)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>flush to disk and close file</p></div></div><div class="code"><div class="wrapper">	index.Close()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>stat file header size
+info, err := os.Stat(indexfile)
+b.Logf(&quot;Filesize: %d&quot;, info.Size())</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>number of bytes per iteration</p></div></div><div class="code"><div class="wrapper">	b.SetBytes(VersionOneIndexRecordSize)
+}
+
+<span class="hljs-keyword">func</span> BenchmarkIndexSlice(b *testing.B) {
+	dir := <span class="hljs-string">"./tests"</span>
+	os.MkdirAll(dir, os.ModeDir|<span class="hljs-number">0700</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>open index file</p></div></div><div class="code"><div class="wrapper">	indexfile := filepath.Join(dir, <span class="hljs-string">"bench002.idx"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>delete prior test file</p></div></div><div class="code"><div class="wrapper">	err := os.Remove(indexfile)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> &amp;&amp; !os.IsNotExist(err) {
+		b.Error(err)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create index factory</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneIndexFactory{indexfile}
+	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>append records</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">for</span> i := <span class="hljs-number">0</span>; i &lt; b.N; i++ {
+		unix := time.Now().UnixNano()
+		offset := <span class="hljs-typename">int64</span>(<span class="hljs-number">24</span>*i + <span class="hljs-number">8</span>)
+		record := BasicIndexRecord{unix, <span class="hljs-typename">uint64</span>(i), offset}
+		index.Append(record)
+	}
+	index.Flush()
+
+	b.ResetTimer()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read slice</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> read <span class="hljs-typename">int</span>
+	<span class="hljs-keyword">for</span> read &lt; b.N {
+		index.Slice(<span class="hljs-typename">int64</span>(read), <span class="hljs-typename">int64</span>(MaximumIndexSlice))
+		read += MaximumIndexSlice</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read += slice.Size()</p></div></div><div class="code"><div class="wrapper">	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>for i := 0; i &lt; slice.Size(); i++ {
+    slice.Get(i)</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-comment">// </span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>close file</p></div></div><div class="code"><div class="wrapper">	index.Close()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>number of bytes per iteration</p></div></div><div class="code"><div class="wrapper">	b.SetBytes(VersionOneIndexRecordSize)
+}</div></div></div></div></body></html>
