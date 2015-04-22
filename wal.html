@@ -17,19 +17,24 @@
 </ul></div></div><div class="code"><div class="wrapper">    ErrReadLogHeader = errors.New(<span class="hljs-string">"failed to read log header"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrWriteLogHeader</code> occurs when the log header cannot be written</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrWriteLogHeader = errors.New(<span class="hljs-string">"failed to write log header"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
-<li><code>ErrSliceOutOfBounds</code> occurs when index.Slice is called and the offset is larger than the size of the index.</li>
+<li><code>ErrSliceOutOfBounds</code> occurs when index.Slice is called and the offset
+is larger than the size of the index.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrSliceOutOfBounds = errors.New(<span class="hljs-string">"read offset out of bounds"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrReadIndex</code> occurs when index.Slice fails to read the records</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrReadIndex = errors.New(<span class="hljs-string">"failed to read index records"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
-<li><code>ErrConfigRequired</code> occurs when no log config is given when creating or opening a log file.</li>
+<li><code>ErrConfigRequired</code> occurs when no log config is given when creating
+or opening a log file.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrConfigRequired = errors.New(<span class="hljs-string">"log config required"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
-<li><code>ErrInvalidFileVersion</code> occurs when the version in the file header is unrecognized.</li>
+<li><code>ErrInvalidFileVersion</code> occurs when the version in the file header
+is unrecognized.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrInvalidFileVersion = errors.New(<span class="hljs-string">"invalid file version"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrInvalidFileSignature</code> occurs when the signature in the file header
 is unrecognized.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrInvalidFileSignature = errors.New(<span class="hljs-string">"invalid file signature"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrWriteLogRecord</code> occurs when a record fails to be written to the log</li>
-</ul></div></div><div class="code"><div class="wrapper">    ErrWriteLogRecord = errors.New(<span class="hljs-string">"failed to write record"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2>
+</ul></div></div><div class="code"><div class="wrapper">    ErrWriteLogRecord = errors.New(<span class="hljs-string">"failed to write record"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>ErrLogAlreadyOpen</code> occurs when an open log tries to be opened agan</li>
+</ul></div></div><div class="code"><div class="wrapper">    ErrLogAlreadyOpen = errors.New(<span class="hljs-string">"log already open"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2>
 <p>File signature bytes</p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-constants-"><strong>Log Constants</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">const</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>FlagsDefault is the default boolean flags for an index file</p></div></div><div class="code"><div class="wrapper">    DefaultIndexFlags = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOne is an integer denoting the first version</p></div></div><div class="code"><div class="wrapper">    VersionOne                = <span class="hljs-number">1</span>
     VersionOneIndexHeaderSize = <span class="hljs-number">4</span>
@@ -79,7 +84,11 @@ Otherwise create a new file based on the given config.</p></div></div><div class
     } <span class="hljs-keyword">else</span> {
         <span class="hljs-keyword">return</span> createNew(file, filename, config)
     }
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>versionOneLogFile</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> versionOneLogFile <span class="hljs-keyword">struct</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-version-one-log-file-"><strong>Version One Log File</strong></h2>
+<p><code>versionOneLogFile</code> is obviously v1 of the WAL. It is the first class which
+implements the <code>WriteAheadLog</code> interface. However, it is not a public
+type. Wallaby strives to maintain a clean API and hence uses interfaces to
+abstract specific implementations.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> versionOneLogFile <span class="hljs-keyword">struct</span> {
     lock        sync.Mutex
     fd          *os.File
     writeCloser io.WriteCloser
@@ -89,32 +98,38 @@ Otherwise create a new file based on the given config.</p></div></div><div class
     flags       <span class="hljs-typename">uint32</span>
     size        <span class="hljs-typename">int64</span>
     state       State
-}
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Open</code> simply switches the state to <code>OPEN</code>. If the log is already open, the
+error <code>ErrLogAlreadyOpen</code> is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Open() error {
+    <span class="hljs-keyword">if</span> v.state == OPEN {
+        <span class="hljs-keyword">return</span> ErrLogAlreadyOpen
+    }
 
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Open() error {
     v.state = OPEN
     <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Pipe(offset, limit <span class="hljs-typename">uint64</span>, writer io.Writer) error {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create cursor</p></div></div><div class="code"><div class="wrapper">    cur := v.Cursor()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>iterate over requested record range</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">for</span> record, err := cur.Seek(offset); err != <span class="hljs-constant">nil</span> &amp;&amp; record.Index() &lt; limit+offset; record, err = cur.Next() {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>marshal record into a buffer</p></div></div><div class="code"><div class="wrapper">        data, e := record.MarshalBinary()
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Pipe</code> will read a <code>limited</code> number of the log records beginning at the
+<code>offset</code> given. All the these records will be serialized into a byte array
+and written to the given <code>io.Writer</code>. If there was an error either converting
+the record or writing to the given <code>io.Writer</code>, the encountered error will be
+returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Pipe(offset, limit <span class="hljs-typename">uint64</span>, writer io.Writer) error {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a new record cursor, closing it when exiting the function.</p></div></div><div class="code"><div class="wrapper">    cur := v.Cursor()
+    <span class="hljs-keyword">defer</span> cur.Close()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Seek to the given <code>offset</code> and read the records until the number of
+requested records are read or an error occurs.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">for</span> record, err := cur.Seek(offset); err != <span class="hljs-constant">nil</span> &amp;&amp; record.Index() &lt; limit+offset; record, err = cur.Next() {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Marshal the record into a byte array returning the error if there
+is one.</p></div></div><div class="code"><div class="wrapper">        data, e := record.MarshalBinary()
         <span class="hljs-keyword">if</span> e != <span class="hljs-constant">nil</span> {
             <span class="hljs-keyword">return</span> e
-        }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write data</p></div></div><div class="code"><div class="wrapper">        _, e = writer.Write(data)
+        }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the byte array to the given <code>writer</code> returning the error if
+there is one.</p></div></div><div class="code"><div class="wrapper">        _, e = writer.Write(data)
         <span class="hljs-keyword">if</span> e != <span class="hljs-constant">nil</span> {
             <span class="hljs-keyword">return</span> e
         }
-    }
-
-    <span class="hljs-keyword">return</span> cur.Close()
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) State() State {
+    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Success. Return a <code>nil</code> error.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>State</code> allows the log state to be queried by returning the current state of
+the log.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) State() State {
     <span class="hljs-keyword">return</span> v.state
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
-    <span class="hljs-keyword">if</span> v.state == CLOSED {
-        <span class="hljs-keyword">for</span> _, writer := <span class="hljs-keyword">range</span> writers {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Use</code> allows middleware to modify the log&#39;s behavior. <code>DecorativeWriteClosers</code>
+are the vehicle while makes this possible. They wrap the internal writer
+with additional capabilities such as using different buffering strategies.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Only apply the middleware is the log is <code>CLOSED</code>. The log remains
+in this state until <code>Open</code> is called.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> v.state == CLOSED {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Iterate over all the <code>DecorativeWriteClosers</code> replacing the internal
+writer with the new one.</p></div></div><div class="code"><div class="wrapper">        <span class="hljs-keyword">for</span> _, writer := <span class="hljs-keyword">range</span> writers {
             v.writeCloser = writer(v.writeCloser)
         }
     }
