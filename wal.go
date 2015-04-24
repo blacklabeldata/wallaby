@@ -1,16 +1,21 @@
+// # wallaby - Write Ahead Log
+
+// Imports go here
+
 package wallaby
 
 import (
     "bytes"
+    "errors"
     "io"
+    "os"
     "sync"
     "time"
-)
-import "os"
-import "errors"
-import "github.com/eliquious/xbinary"
 
-// ## **Log Errors**
+    "github.com/eliquious/xbinary"
+)
+
+// ## **Possible Log Errors**
 
 var (
     // - `ErrReadIndexHeader` occurs when the index header cannot be read
@@ -47,7 +52,7 @@ var (
     // - `ErrWriteLogRecord` occurs when a record fails to be written to the log
     ErrWriteLogRecord = errors.New("failed to write record")
 
-    // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened agan
+    // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened again
     ErrLogAlreadyOpen = errors.New("log already open")
 
     // ## **Log Variables**
@@ -116,6 +121,7 @@ var DefaultConfig Config = Config{
 // If the file already exists and the file version is different than the given
 // `config.Version`, the file will remain the version in which is was created.
 // In other words the file will not be updated to the newer version.
+
 // ###### Implementation
 func Open(filename string, config Config) (WriteAheadLog, error) {
 
@@ -242,10 +248,7 @@ func (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
 }
 
 func (v *versionOneLogFile) Append(data []byte) (LogRecord, error) {
-    index, err := v.index.Size()
-    if err != nil {
-        return nil, ErrWriteLogRecord
-    }
+    index := v.index.Size()
 
     // create log record
     record, err := v.factory.NewRecord(time.Now().UnixNano(), index, v.flags, data)
@@ -266,7 +269,7 @@ func (v *versionOneLogFile) Append(data []byte) (LogRecord, error) {
     }
 
     v.size += int64(len(buffer))
-    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size)})
+    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
 
     // return newly created record
     return record, nil

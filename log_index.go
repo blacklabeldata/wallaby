@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/eliquious/xbinary"
 )
@@ -16,8 +17,8 @@ type IndexFactory interface {
 
 // LogIndex maintains a list of all the records in the log file. IndexRecords
 type LogIndex interface {
-	Size() (uint64, error)
-	Header() (FileHeader, error)
+	Size() uint64
+	Header() FileHeader
 	Append(record IndexRecord) (n int, err error)
 	Slice(offset int64, limit int64) (IndexSlice, error)
 	Flush() error
@@ -42,6 +43,8 @@ type IndexRecord interface {
 	Time() int64
 	Index() uint64
 	Offset() int64
+	TimeToLive() uint64
+	IsExpired() bool
 }
 
 // BasicIndexRecord implements the bare IndexRecord interface.
@@ -49,6 +52,7 @@ type BasicIndexRecord struct {
 	nanos  int64
 	index  uint64
 	offset int64
+	ttl    uint64
 }
 
 // Time returns when the record was written to the data file.
@@ -64,6 +68,19 @@ func (i BasicIndexRecord) Index() uint64 {
 // Offset is the distance the data record is from the start of the data file.
 func (i BasicIndexRecord) Offset() int64 {
 	return i.offset
+}
+
+// TimeToLive allows for records to expire after a period of time. TTL is in
+// seconds.
+func (i BasicIndexRecord) TimeToLive() uint64 {
+	return i.ttl
+}
+
+// IsExpired is a helper function for the index record which returns `true` if
+// the current time is beyond the expiration time. The expiration time is
+// calculated as written time + TTL.
+func (i BasicIndexRecord) IsExpired() bool {
+	return time.Now().After(time.Unix(i.nanos, 0).Add(time.Duration(i.ttl)))
 }
 
 // BasicFileHeader is the simplest implementation of the FileHeader interface.
@@ -116,6 +133,24 @@ func (i VersionOneIndexRecord) Offset() int64 {
 	}
 
 	return offset
+}
+
+// TimeToLive allows for records to expire after a period of time. TTL is in
+// seconds.
+func (i VersionOneIndexRecord) TimeToLive() uint64 {
+	ttl, err := xbinary.LittleEndian.Uint64(*i.buffer, 24+i.offset)
+	if err != nil {
+		ttl = 0
+	}
+
+	return ttl
+}
+
+// IsExpired is a helper function for the index record which returns `true` if
+// the current time is beyond the expiration time. The expiration time is
+// calculated as written time + TTL.
+func (i VersionOneIndexRecord) IsExpired() bool {
+	return time.Now().After(time.Unix(i.Time(), 0).Add(time.Duration(i.TimeToLive())))
 }
 
 // VersionOneIndexFactory creates index files of v1.
@@ -295,19 +330,17 @@ func (i *VersionOneIndexFile) incrementSize() {
 }
 
 // Size is the number of elements in the index. Which should coorespond with the number of records in the data file.
-func (i VersionOneIndexFile) Size() (uint64, error) {
-	return atomic.LoadUint64(i.size), nil
+func (i VersionOneIndexFile) Size() uint64 {
+	return atomic.LoadUint64(i.size)
 }
 
 // Header returns the file header which describes the index file.
-func (i VersionOneIndexFile) Header() (FileHeader, error) {
-	return i.header, nil
+func (i VersionOneIndexFile) Header() FileHeader {
+	return i.header
 }
 
 // Slice returns multiple index records starting at the given offset.
 func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
-	// flush buffer on read
-	i.Flush()
 
 	// get size
 	var size = atomic.LoadUint64(i.size)
