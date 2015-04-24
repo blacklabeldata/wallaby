@@ -17,20 +17,9 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "README.md",
         "targetPath": "index",
         "pageTitle": "index",
-        "firstHeader": {
-          "type": "heading",
-          "data": {
-            "level": 1,
-            "title": "wallaby",
-            "slug": "wallaby",
-            "isFileHeader": true
-          },
-          "depth": 1
-        },
-        "title": "wallaby"
+        "title": "index"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -48,8 +37,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log",
         "title": "log"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -67,8 +55,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index",
         "title": "log_index"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -86,8 +73,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index_test",
         "title": "log_index_test"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -105,8 +91,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_test",
         "title": "log_test"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -124,42 +109,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "wal",
         "title": "wal"
       },
-      "depth": 1,
-      "outline": [
-        {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implentation",
-            "slug": "implentation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }
-      ]
+      "depth": 1
     }
   ];
 

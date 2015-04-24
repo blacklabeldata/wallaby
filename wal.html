@@ -1,14 +1,15 @@
-<!DOCTYPE html><html lang="en"><head><title>wal</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="wal"><meta name="groc-project-path" content="wal.go"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/wal.go">wal.go</a></div></div><div id="document"><div class="segment"><div class="code"><div class="wrapper"><span class="hljs-keyword">package</span> wallaby
+<!DOCTYPE html><html lang="en"><head><title>wal</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="wal"><meta name="groc-project-path" content="wal.go"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/wal.go">wal.go</a></div></div><div id="document"><div class="segment"><div class="comments "><div class="wrapper"><h1 id="wallaby-write-ahead-log">wallaby - Write Ahead Log</h1></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Imports go here</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">package</span> wallaby
 
 <span class="hljs-keyword">import</span> (
     <span class="hljs-string">"bytes"</span>
+    <span class="hljs-string">"errors"</span>
     <span class="hljs-string">"io"</span>
+    <span class="hljs-string">"os"</span>
     <span class="hljs-string">"sync"</span>
     <span class="hljs-string">"time"</span>
-)
-<span class="hljs-keyword">import</span> <span class="hljs-string">"os"</span>
-<span class="hljs-keyword">import</span> <span class="hljs-string">"errors"</span>
-<span class="hljs-keyword">import</span> <span class="hljs-string">"github.com/eliquious/xbinary"</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-errors-"><strong>Log Errors</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+
+    <span class="hljs-string">"github.com/eliquious/xbinary"</span>
+)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-possible-log-errors-"><strong>Possible Log Errors</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrReadIndexHeader</code> occurs when the index header cannot be read</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrReadIndexHeader = errors.New(<span class="hljs-string">"failed to read index header"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrWriteIndexHeader</code> occurs when the index header cannot be written</li>
@@ -33,7 +34,7 @@ is unrecognized.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrInvalidFileSignature = errors.New(<span class="hljs-string">"invalid file signature"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrWriteLogRecord</code> occurs when a record fails to be written to the log</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrWriteLogRecord = errors.New(<span class="hljs-string">"failed to write record"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
-<li><code>ErrLogAlreadyOpen</code> occurs when an open log tries to be opened agan</li>
+<li><code>ErrLogAlreadyOpen</code> occurs when an open log tries to be opened again</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrLogAlreadyOpen = errors.New(<span class="hljs-string">"log already open"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2>
 <p>File signature bytes</p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-constants-"><strong>Log Constants</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">const</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>FlagsDefault is the default boolean flags for an index file</p></div></div><div class="code"><div class="wrapper">    DefaultIndexFlags = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOne is an integer denoting the first version</p></div></div><div class="code"><div class="wrapper">    VersionOne                = <span class="hljs-number">1</span>
@@ -65,8 +66,7 @@ file format can be verified, the existing log will be returned. If the
 file does not exist, a new log will be created with the given config.</p>
 <p>If the file already exists and the file version is different than the given
 <code>config.Version</code>, the file will remain the version in which is was created.
-In other words the file will not be updated to the newer version.</p>
-<h6 id="implementation">Implementation</h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> Open(filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Determine if the given config is valid. If the given config is <code>nil</code>,
+In other words the file will not be updated to the newer version.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="implementation">Implementation</h6></div></div></div><div class="segment"><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> Open(filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Determine if the given config is valid. If the given config is <code>nil</code>,
 a <code>ErrConfigRequired</code> error will be returned.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> &amp;config == <span class="hljs-constant">nil</span> {
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrConfigRequired
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Open the file name, creating the file if it does not already exist. The
@@ -136,10 +136,7 @@ writer with the new one.</p></div></div><div class="code"><div class="wrapper"> 
 }
 
 <span class="hljs-keyword">func</span> (v *versionOneLogFile) Append(data []<span class="hljs-typename">byte</span>) (LogRecord, error) {
-    index, err := v.index.Size()
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrWriteLogRecord
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create log record</p></div></div><div class="code"><div class="wrapper">    record, err := v.factory.NewRecord(time.Now().UnixNano(), index, v.flags, data)
+    index := v.index.Size()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create log record</p></div></div><div class="code"><div class="wrapper">    record, err := v.factory.NewRecord(time.Now().UnixNano(), index, v.flags, data)
     <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrWriteLogRecord
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>binary record</p></div></div><div class="code"><div class="wrapper">    buffer, err := record.MarshalBinary()
@@ -151,7 +148,7 @@ writer with the new one.</p></div></div><div class="code"><div class="wrapper"> 
     }
 
     v.size += <span class="hljs-typename">int64</span>(<span class="hljs-built_in">len</span>(buffer))
-    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), <span class="hljs-typename">int64</span>(v.size)})</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return newly created record</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> record, <span class="hljs-constant">nil</span>
+    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), <span class="hljs-typename">int64</span>(v.size), <span class="hljs-number">0</span>})</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return newly created record</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> record, <span class="hljs-constant">nil</span>
 }
 
 <span class="hljs-keyword">func</span> (v *versionOneLogFile) Cursor() Cursor {

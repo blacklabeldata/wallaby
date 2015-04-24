@@ -5,13 +5,14 @@
 	<span class="hljs-string">"os"</span>
 	<span class="hljs-string">"sync"</span>
 	<span class="hljs-string">"sync/atomic"</span>
+	<span class="hljs-string">"time"</span>
 
 	<span class="hljs-string">"github.com/eliquious/xbinary"</span>
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> IndexFactory <span class="hljs-keyword">interface</span> {
 	GetOrCreateIndex(flags <span class="hljs-typename">uint32</span>) (*LogIndex, error)
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>LogIndex maintains a list of all the records in the log file. IndexRecords</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogIndex <span class="hljs-keyword">interface</span> {
-	Size() (<span class="hljs-typename">uint64</span>, error)
-	Header() (FileHeader, error)
+	Size() <span class="hljs-typename">uint64</span>
+	Header() FileHeader
 	Append(record IndexRecord) (n <span class="hljs-typename">int</span>, err error)
 	Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error)
 	Flush() error
@@ -27,16 +28,26 @@ represents boolean flags.</p></div></div><div class="code"><div class="wrapper">
 	Time() <span class="hljs-typename">int64</span>
 	Index() <span class="hljs-typename">uint64</span>
 	Offset() <span class="hljs-typename">int64</span>
+	TimeToLive() <span class="hljs-typename">uint64</span>
+	IsExpired() <span class="hljs-typename">bool</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>BasicIndexRecord implements the bare IndexRecord interface.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> BasicIndexRecord <span class="hljs-keyword">struct</span> {
 	nanos  <span class="hljs-typename">int64</span>
 	index  <span class="hljs-typename">uint64</span>
 	offset <span class="hljs-typename">int64</span>
+	ttl    <span class="hljs-typename">uint64</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time returns when the record was written to the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) Time() <span class="hljs-typename">int64</span> {
 	<span class="hljs-keyword">return</span> i.nanos
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index is a record&#39;s numerical id.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) Index() <span class="hljs-typename">uint64</span> {
 	<span class="hljs-keyword">return</span> i.index
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Offset is the distance the data record is from the start of the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) Offset() <span class="hljs-typename">int64</span> {
 	<span class="hljs-keyword">return</span> i.offset
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>TimeToLive allows for records to expire after a period of time. TTL is in
+seconds.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) TimeToLive() <span class="hljs-typename">uint64</span> {
+	<span class="hljs-keyword">return</span> i.ttl
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IsExpired is a helper function for the index record which returns <code>true</code> if
+the current time is beyond the expiration time. The expiration time is
+calculated as written time + TTL.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) IsExpired() <span class="hljs-typename">bool</span> {
+	<span class="hljs-keyword">return</span> time.Now().After(time.Unix(i.nanos, <span class="hljs-number">0</span>).Add(time.Duration(i.ttl)))
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>BasicFileHeader is the simplest implementation of the FileHeader interface.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> BasicFileHeader <span class="hljs-keyword">struct</span> {
 	version <span class="hljs-typename">uint8</span>
 	flags   <span class="hljs-typename">uint32</span>
@@ -68,6 +79,18 @@ represents boolean flags.</p></div></div><div class="code"><div class="wrapper">
 	}
 
 	<span class="hljs-keyword">return</span> offset
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>TimeToLive allows for records to expire after a period of time. TTL is in
+seconds.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) TimeToLive() <span class="hljs-typename">uint64</span> {
+	ttl, err := xbinary.LittleEndian.Uint64(*i.buffer, <span class="hljs-number">24</span>+i.offset)
+	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
+		ttl = <span class="hljs-number">0</span>
+	}
+
+	<span class="hljs-keyword">return</span> ttl
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IsExpired is a helper function for the index record which returns <code>true</code> if
+the current time is beyond the expiration time. The expiration time is
+calculated as written time + TTL.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) IsExpired() <span class="hljs-typename">bool</span> {
+	<span class="hljs-keyword">return</span> time.Now().After(time.Unix(i.Time(), <span class="hljs-number">0</span>).Add(time.Duration(i.TimeToLive())))
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOneIndexFactory creates index files of v1.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> VersionOneIndexFactory <span class="hljs-keyword">struct</span> {
 	Filename <span class="hljs-typename">string</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>GetOrCreateIndex either creates a new file or reads from an existing index
@@ -151,11 +174,11 @@ The records start immediately following the bit flags.</p></div></div><div class
 		<span class="hljs-keyword">return</span> n, err
 	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>increment index size</p></div></div><div class="code"><div class="wrapper">	i.incrementSize()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return num bytes and nil error</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">return</span> written, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IncrementSize bumps the index size by one.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) incrementSize() {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>*i.size++</p></div></div><div class="code"><div class="wrapper">	atomic.AddUint64(i.size, <span class="hljs-number">1</span>)
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size is the number of elements in the index. Which should coorespond with the number of records in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Size() (<span class="hljs-typename">uint64</span>, error) {
-	<span class="hljs-keyword">return</span> atomic.LoadUint64(i.size), <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Header returns the file header which describes the index file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Header() (FileHeader, error) {
-	<span class="hljs-keyword">return</span> i.header, <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Slice returns multiple index records starting at the given offset.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>flush buffer on read</p></div></div><div class="code"><div class="wrapper">	i.Flush()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>get size</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> size = atomic.LoadUint64(i.size)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset too  or less than 0</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> offset &gt; <span class="hljs-typename">int64</span>(size) || offset &lt; <span class="hljs-number">0</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size is the number of elements in the index. Which should coorespond with the number of records in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Size() <span class="hljs-typename">uint64</span> {
+	<span class="hljs-keyword">return</span> atomic.LoadUint64(i.size)
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Header returns the file header which describes the index file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Header() FileHeader {
+	<span class="hljs-keyword">return</span> i.header
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Slice returns multiple index records starting at the given offset.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>get size</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> size = atomic.LoadUint64(i.size)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset too  or less than 0</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> offset &gt; <span class="hljs-typename">int64</span>(size) || offset &lt; <span class="hljs-number">0</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrSliceOutOfBounds</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>invalid limit</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> limit &lt; <span class="hljs-number">1</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrSliceOutOfBounds
 	}
