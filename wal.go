@@ -130,6 +130,7 @@ type Config struct {
     MaxRecordSize int
     Flags         uint32
     Version       uint8
+    Truncate      bool
 }
 
 // > `DefaultConfig` can be used for sensible default log configuration.
@@ -138,6 +139,7 @@ var DefaultConfig Config = Config{
     MaxRecordSize: DefaultMaxRecordSize,
     Flags:         DefaultRecordFlags,
     Version:       VersionOne,
+    Truncate:      false,
 }
 
 // ## **Create a log file**
@@ -167,6 +169,15 @@ func Create(filename string, config Config) (WriteAheadLog, error) {
     // If there was an error opening the file, the open error is returned.
     if err != nil {
         return nil, err
+    }
+
+    // Truncate the log file if requested in the given config
+    if config.Truncate {
+        err = file.Truncate(0)
+        if err != nil {
+            file.Close()
+            return nil, err
+        }
     }
 
     // Get the file stat. The file size is gotten from this call. This helps
