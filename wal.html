@@ -6,7 +6,9 @@
     <span class="hljs-string">"errors"</span>
     <span class="hljs-string">"os"</span>
     <span class="hljs-string">"sync"</span>
+    <span class="hljs-string">"time"</span>
 
+    xxhash <span class="hljs-string">"github.com/OneOfOne/xxhash/native"</span>
     <span class="hljs-string">"github.com/eliquious/xbinary"</span>
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-possible-log-errors-"><strong>Possible Log Errors</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrReadIndexHeader</code> occurs when the index header cannot be read</li>
@@ -121,7 +123,7 @@ the error.</p></div></div><div class="code"><div class="wrapper">    stat, err :
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a lock for the log and wrap the file in an atomic writer. The
 atomic writer syncs to disk after each write.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">var</span> lock sync.Mutex
     atomicWriter := NewAtomicWriter(file)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Finally, create the log file and return.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> &amp;versionOneLogFile{lock, file, atomicWriter, &amp;header, index,
-        recordFactory, config.Flags, stat.Size(), CLOSED}, <span class="hljs-constant">nil</span>
+        recordFactory, config.Flags, stat.Size(), CLOSED, xxhash.New64(), time.Now().UnixNano()}, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-creates-a-new-log-file-"><strong>Creates a new log file</strong></h3>
 <p>A new log file is created with a file header consisting of a <code>LOG</code> signature
 followed by an 8-bit version. The file header is then synced to disk and

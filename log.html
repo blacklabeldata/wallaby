@@ -2,6 +2,7 @@
 
 <span class="hljs-keyword">import</span> (
 	<span class="hljs-string">"encoding"</span>
+	<span class="hljs-string">"hash"</span>
 	<span class="hljs-string">"io"</span>
 	<span class="hljs-string">"os"</span>
 	<span class="hljs-string">"sync"</span>
@@ -20,18 +21,14 @@ record offset and reading up until the given limit.</p></div></div><div class="c
  and moves forward until EOF.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogCursor <span class="hljs-keyword">interface</span> {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-seek-"><em>Seek</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Seek moves the Cursor to the given record index.</p></div></div><div class="code"><div class="wrapper">	Seek(offset <span class="hljs-typename">uint64</span>) (LogRecord, error)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-next-"><em>Next</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Next moves the Cursor forward one record.</p></div></div><div class="code"><div class="wrapper">	Next() (LogRecord, error)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-close-"><em>Close</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Close cursor and any associates file handles</p></div></div><div class="code"><div class="wrapper">	Close() error
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-log-record-"><strong>Log Record</strong></h3></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>LogRecord describes a single item in the log file. It consists of a time, an
 index id, a length and the data.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogRecord <span class="hljs-keyword">interface</span> {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-binarymarshaler-"><em>BinaryMarshaler</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Converts a LogRecord as a byte array</p></div></div><div class="code"><div class="wrapper">	encoding.BinaryMarshaler</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-size-"><em>Size</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size returns the size of the record data</p></div></div><div class="code"><div class="wrapper">	Size() <span class="hljs-typename">uint32</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-flags-"><em>Flags</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Flags returns any boolean flags associated</p></div></div><div class="code"><div class="wrapper">	Flags() <span class="hljs-typename">uint32</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-time-"><em>Time</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time returns the record timestamp</p></div></div><div class="code"><div class="wrapper">	Time() <span class="hljs-typename">int64</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-index-"><em>Index</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index returns the record offset in the log</p></div></div><div class="code"><div class="wrapper">	Index() <span class="hljs-typename">uint64</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-data-"><em>Data</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Data returns record data</p></div></div><div class="code"><div class="wrapper">	Data() []<span class="hljs-typename">byte</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-logrecordfactory-"><strong>LogRecordFactory</strong></h6>
-<p><code>LogRecordFactory</code> generates new <code>LogRecords</code> from the arguments.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogRecordFactory <span class="hljs-keyword">func</span>(nanos <span class="hljs-typename">int64</span>, index <span class="hljs-typename">uint64</span>, flags <span class="hljs-typename">uint32</span>, data []<span class="hljs-typename">byte</span>) (LogRecord, error)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-basiclogrecordfactory-"><strong>BasicLogRecordFactory</strong></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>BasicLogRecordFactory</code> creates a v1 log record. Each record is prefixed
-with a header. If the record data exceeds the maximum record size, an
-<code>ErrRecordTooLarge</code> error is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> BasicLogRecordFactory(max_size <span class="hljs-typename">int</span>) LogRecordFactory {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-logrecordfactory-"><strong>LogRecordFactory</strong></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>LogRecordFactory generates new <code>LogRecords</code> from the arguments.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogRecordFactory <span class="hljs-keyword">func</span>(nanos <span class="hljs-typename">int64</span>, index <span class="hljs-typename">uint64</span>, flags <span class="hljs-typename">uint32</span>, data []<span class="hljs-typename">byte</span>) (LogRecord, error)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-basiclogrecordfactory-"><strong>BasicLogRecordFactory</strong></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>BasicLogRecordFactory creates a v1 log record. Each record is prefixed with a header. If the record data exceeds the maximum record size, an <code>ErrRecordTooLarge</code> error is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> BasicLogRecordFactory(maxSize <span class="hljs-typename">int</span>) LogRecordFactory {
 	<span class="hljs-keyword">return</span> <span class="hljs-keyword">func</span>(nanos <span class="hljs-typename">int64</span>, index <span class="hljs-typename">uint64</span>, flags <span class="hljs-typename">uint32</span>, data []<span class="hljs-typename">byte</span>) (LogRecord, error) {
-		<span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(data) &gt; max_size {
+		<span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(data) &gt; maxSize {
 			<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrRecordTooLarge
 		}
 		<span class="hljs-keyword">return</span> BasicLogRecord{<span class="hljs-typename">uint32</span>(<span class="hljs-built_in">len</span>(data)), nanos, index, flags, data}, <span class="hljs-constant">nil</span>
 	}
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-basiclogrecord-"><strong>BasicLogRecord</strong></h3></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>BasicLogRecord</code> represents an element in the log. Each record has a
-timestamp, an index, boolean flags, a length and the data.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> BasicLogRecord <span class="hljs-keyword">struct</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-basiclogrecord-"><strong>BasicLogRecord</strong></h3></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>BasicLogRecord represents an element in the log. Each record has a timestamp, an index, boolean flags, a length and the data.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> BasicLogRecord <span class="hljs-keyword">struct</span> {
 	size  <span class="hljs-typename">uint32</span>
 	nanos <span class="hljs-typename">int64</span>
 	index <span class="hljs-typename">uint64</span>
@@ -50,9 +47,7 @@ timestamp, an index, boolean flags, a length and the data.</p></div></div><div c
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>MarshalBinary encodes the entire record in a byte array.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (r BasicLogRecord) MarshalBinary() ([]<span class="hljs-typename">byte</span>, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create header buffer</p></div></div><div class="code"><div class="wrapper">	buffer := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">24</span>+r.size)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write uint32 size</p></div></div><div class="code"><div class="wrapper">	xbinary.LittleEndian.PutUint32(buffer, <span class="hljs-number">0</span>, r.size)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write uint32 flags</p></div></div><div class="code"><div class="wrapper">	xbinary.LittleEndian.PutUint32(buffer, <span class="hljs-number">4</span>, r.flags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write int64 timestamp</p></div></div><div class="code"><div class="wrapper">	xbinary.LittleEndian.PutInt64(buffer, <span class="hljs-number">8</span>, r.nanos)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write uint64 index</p></div></div><div class="code"><div class="wrapper">	xbinary.LittleEndian.PutUint64(buffer, <span class="hljs-number">16</span>, r.index)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write data</p></div></div><div class="code"><div class="wrapper">	buffer = <span class="hljs-built_in">append</span>(buffer[:<span class="hljs-number">24</span>], r.data...)
 
 	<span class="hljs-keyword">return</span> buffer, <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> UnmarshalBasicLogRecord(buffer []<span class="hljs-typename">byte</span>) (*BasicLogRecord, error) {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-unmarshalbasiclogrecord-"><strong>UnmarshalBasicLogRecord</strong></h3></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>UnmarshalBasicLogRecord is a utility method for converting a byte array to a LogRecord. If the record is too small to contain the record header, an <code>ErrInvalidRecordSize</code> error is returned. If the size outlined in the header does not equal the size of the given buffer and the header, an <code>ErrInvalidRecordSize</code> error is also returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> UnmarshalBasicLogRecord(buffer []<span class="hljs-typename">byte</span>) (*BasicLogRecord, error) {
 	<span class="hljs-keyword">var</span> r BasicLogRecord
 	<span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(buffer) &lt; VersionOneLogRecordHeaderSize {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrInvalidRecordSize
@@ -81,13 +76,20 @@ abstract specific implementations.</p></div></div><div class="code"><div class="
 	flags       <span class="hljs-typename">uint32</span>
 	size        <span class="hljs-typename">int64</span>
 	state       State
+	hash        hash.Hash64
+	nanos       <span class="hljs-typename">int64</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-open-"><em>Open</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Open</code> simply switches the state to <code>OPEN</code>. If the log is already open, the
 error <code>ErrLogAlreadyOpen</code> is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Open() error {
+	v.lock.Lock()
+	<span class="hljs-keyword">defer</span> v.lock.Unlock()
+
 	<span class="hljs-keyword">if</span> v.state == OPEN {
 		<span class="hljs-keyword">return</span> ErrLogAlreadyOpen
 	}
 
 	v.state = OPEN
+
+	io.Copy(v.hash, v.fd)
 	<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-pipe-"><em>Pipe</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Pipe</code> will read a <code>limited</code> number of the log records beginning at the
 <code>offset</code> given. All the these records will be serialized into a byte array
@@ -135,19 +137,30 @@ writer with the new one.</p></div></div><div class="code"><div class="wrapper">	
 	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>binary record</p></div></div><div class="code"><div class="wrapper">	buffer, err := record.MarshalBinary()
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>_, err = v.fd.Write(buffer)</p></div></div><div class="code"><div class="wrapper">	v.writeCloser.Write(buffer)
+	}
+	v.hash.Write(buffer)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>_, err = v.fd.Write(buffer)</p></div></div><div class="code"><div class="wrapper">	v.writeCloser.Write(buffer)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
 	}
-
+	v.nanos = time.Now().UnixNano()
 	v.size += <span class="hljs-typename">int64</span>(<span class="hljs-built_in">len</span>(buffer))
 	v.index.Append(BasicIndexRecord{record.Time(), record.Index(), <span class="hljs-typename">int64</span>(v.size), <span class="hljs-number">0</span>})</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return newly created record</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">return</span> record, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-cursor-"><em>Cursor</em></h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Cursor() LogCursor {
 	<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-snapshot-"><em>Snapshot</em></h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Snapshot() (Snapshot, error) {
-	<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-metadata-"><em>Metadata</em></h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Metadata() (Metadata, error) {
-	meta := Metadata{}
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-snapshot-"><em>Snapshot</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Snapshot returns a Snapshot instance representing the current state of the log.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Snapshot() (Snapshot, error) {
+	v.lock.Lock()
+	<span class="hljs-keyword">defer</span> v.lock.Unlock()
+	<span class="hljs-keyword">return</span> BasicSnapshot{v.nanos, v.size, v.hash.Sum64()}, <span class="hljs-constant">nil</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-metadata-"><em>Metadata</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Metadata returns information about the log file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Metadata() (Metadata, error) {
+	v.lock.Lock()
+	<span class="hljs-keyword">defer</span> v.lock.Unlock()
+
+	meta := Metadata{
+		Size:             v.size,
+		LastModifiedTime: v.nanos,
+		FileName:         v.fd.Name(),
+		IndexFileName:    v.fd.Name() + <span class="hljs-string">".idx"</span>,
+	}
 	<span class="hljs-keyword">return</span> meta, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-recover-"><em>Recover</em></h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Recover() error {
 	<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>

@@ -7,16 +7,16 @@
     <span class="hljs-string">"github.com/eliquious/xbinary"</span>
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-snapshot-"><strong>Snapshot</strong></h3></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a XXH64 hash of all the log entries.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Snapshot <span class="hljs-keyword">interface</span> {
     Time() time.Time
-    Size() <span class="hljs-typename">uint64</span>
+    Size() <span class="hljs-typename">int64</span>
     Hash() <span class="hljs-typename">uint64</span>
     encoding.BinaryMarshaler
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h4 id="-basicsnapshot-"><strong>BasicSnapshot</strong></h4></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>BasicSnapshot represents the simplest snapshot which fulfills the Snapshot interface. The timestamp is stored as nanoseconds since epoch. Both size and hash are stored as 64-bit integers.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> BasicSnapshot <span class="hljs-keyword">struct</span> {
     nanos <span class="hljs-typename">int64</span>
-    size  <span class="hljs-typename">uint64</span>
+    size  <span class="hljs-typename">int64</span>
     hash  <span class="hljs-typename">uint64</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-time-"><em>Time</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time converts the nanoseconds since epoch into a <code>time.Time</code> instance.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (b BasicSnapshot) Time() time.Time {
     <span class="hljs-keyword">return</span> time.Unix(<span class="hljs-number">0</span>, b.nanos)
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-size-"><em>Size</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size returns the number of records in the log at the time the snapshot was taken.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (b BasicSnapshot) Size() <span class="hljs-typename">uint64</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-size-"><em>Size</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size returns the number of records in the log at the time the snapshot was taken.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (b BasicSnapshot) Size() <span class="hljs-typename">int64</span> {
     <span class="hljs-keyword">return</span> b.size
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-hash-"><em>Hash</em></h6></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Hash returns the XXH64 hash of the log file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (b BasicSnapshot) Hash() <span class="hljs-typename">uint64</span> {
     <span class="hljs-keyword">return</span> b.hash
@@ -32,7 +32,7 @@ The byte array is formatted like so:</p>
 +--------+--------+--------+</code></pre></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (b BasicSnapshot) MarshalBinary() ([]<span class="hljs-typename">byte</span>, error) {
     buffer := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">24</span>)
     xbinary.LittleEndian.PutInt64(buffer, <span class="hljs-number">0</span>, b.nanos)
-    xbinary.LittleEndian.PutUint64(buffer, <span class="hljs-number">8</span>, b.size)
+    xbinary.LittleEndian.PutInt64(buffer, <span class="hljs-number">8</span>, b.size)
     xbinary.LittleEndian.PutUint64(buffer, <span class="hljs-number">16</span>, b.hash)
     <span class="hljs-keyword">return</span> buffer, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h4 id="-unmarshalshapshot-"><strong>UnmarshalShapshot</strong></h4></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>UnmarshalSnapshot is a utility function which converts a byte array into a snapshot. If the byte array is too small, a <code>ErrInvalidSnapshot</code> is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> UnmarshalShapshot(data []<span class="hljs-typename">byte</span>) (Snapshot, error) {
@@ -44,7 +44,7 @@ The byte array is formatted like so:</p>
     nanos, _ := xbinary.LittleEndian.Int64(data, <span class="hljs-number">0</span>)
     snapshot.nanos = nanos
 
-    size, _ := xbinary.LittleEndian.Uint64(data, <span class="hljs-number">8</span>)
+    size, _ := xbinary.LittleEndian.Int64(data, <span class="hljs-number">8</span>)
     snapshot.size = size
 
     hash, _ := xbinary.LittleEndian.Uint64(data, <span class="hljs-number">16</span>)
