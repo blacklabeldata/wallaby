@@ -11,9 +11,10 @@ import (
 )
 
 // IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.
-type IndexFactory interface {
-	GetOrCreateIndex(flags uint32) (*LogIndex, error)
-}
+// type IndexFactory interface {
+// 	GetOrCreateIndex(flags uint32) (*LogIndex, error)
+// }
+type IndexFactory func(filename string, version uint8, flags uint32) (LogIndex, error)
 
 // LogIndex maintains a list of all the records in the log file. IndexRecords
 type LogIndex interface {
@@ -43,7 +44,7 @@ type IndexRecord interface {
 	Time() int64
 	Index() uint64
 	Offset() int64
-	TimeToLive() uint64
+	TimeToLive() int64
 	IsExpired() bool
 }
 
@@ -52,7 +53,7 @@ type BasicIndexRecord struct {
 	nanos  int64
 	index  uint64
 	offset int64
-	ttl    uint64
+	ttl    int64
 }
 
 // Time returns when the record was written to the data file.
@@ -72,7 +73,7 @@ func (i BasicIndexRecord) Offset() int64 {
 
 // TimeToLive allows for records to expire after a period of time. TTL is in
 // seconds.
-func (i BasicIndexRecord) TimeToLive() uint64 {
+func (i BasicIndexRecord) TimeToLive() int64 {
 	return i.ttl
 }
 
@@ -137,8 +138,8 @@ func (i VersionOneIndexRecord) Offset() int64 {
 
 // TimeToLive allows for records to expire after a period of time. TTL is in
 // seconds.
-func (i VersionOneIndexRecord) TimeToLive() uint64 {
-	ttl, err := xbinary.LittleEndian.Uint64(*i.buffer, 24+i.offset)
+func (i VersionOneIndexRecord) TimeToLive() int64 {
+	ttl, err := xbinary.LittleEndian.Int64(*i.buffer, 24+i.offset)
 	if err != nil {
 		ttl = 0
 	}
@@ -150,12 +151,7 @@ func (i VersionOneIndexRecord) TimeToLive() uint64 {
 // the current time is beyond the expiration time. The expiration time is
 // calculated as written time + TTL.
 func (i VersionOneIndexRecord) IsExpired() bool {
-	return time.Now().After(time.Unix(i.Time(), 0).Add(time.Duration(i.TimeToLive())))
-}
-
-// VersionOneIndexFactory creates index files of v1.
-type VersionOneIndexFactory struct {
-	Filename string
+	return time.Now().UnixNano() > i.Time()+i.TimeToLive()
 }
 
 // GetOrCreateIndex either creates a new file or reads from an existing index
@@ -164,10 +160,10 @@ type VersionOneIndexFactory struct {
 // VersionOneLogHeader starts with a 3-byte string, "IDX", followed by an 8-bit
 // version. After the version, a uint32 represents the boolean flags.
 // The records start immediately following the bit flags.
-func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error) {
+func VersionOneIndexFactory(filename string, version uint8, flags uint32) (LogIndex, error) {
 
 	// try to open index file, return error on fail
-	file, err := os.OpenFile(f.Filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +209,7 @@ func (f VersionOneIndexFactory) GetOrCreateIndex(flags uint32) (LogIndex, error)
 	} else {
 
 		// write magic string
-		xbinary.LittleEndian.PutString(buf, 0, "IDX")
+		xbinary.LittleEndian.PutString(buf, 0, string(IndexFileSignature))
 
 		// write version
 		buf[3] = byte(VersionOne)
@@ -303,6 +299,10 @@ func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
 
 	// write byte offset in record file
 	n, _ = i.extbuf.PutInt64(i.buffer, 16, record.Offset())
+	written += n
+
+	// write ttl
+	n, _ = i.extbuf.PutInt64(i.buffer, 24, record.TimeToLive())
 	written += n
 
 	// check bytes written
