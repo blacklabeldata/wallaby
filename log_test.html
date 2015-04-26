@@ -8,13 +8,13 @@
 	<span class="hljs-string">"github.com/stretchr/testify/assert"</span>
 )
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecord(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecord(t *testing.T) {
 
-	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span> = <span class="hljs-number">0</span>
+	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span>
 	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	<span class="hljs-keyword">var</span> size <span class="hljs-typename">uint32</span> = <span class="hljs-number">64</span>
 	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := BasicLogRecord{size, nanos, index, flags, buf}
 
 	assert.Equal(t, index, record.Index(), <span class="hljs-string">"index should be 0"</span>)
 	assert.Equal(t, size, record.Size(), <span class="hljs-string">"size should be 64"</span>)
@@ -23,14 +23,14 @@
 	assert.Equal(t, buf, record.Data())
 }
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecordFactory(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecordFactory(t *testing.T) {
 
-	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span> = <span class="hljs-number">0</span>
+	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span>
 	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	<span class="hljs-keyword">var</span> size <span class="hljs-typename">uint32</span> = <span class="hljs-number">64</span>
 	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneLogRecordFactory{DefaultMaxRecordSize}
-	record, err := factory.NewRecord(nanos, index, flags, buf)
+	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	factory := BasicLogRecordFactory(DefaultMaxRecordSize)
+	record, err := factory(nanos, index, flags, buf)
 	assert.Nil(t, err)
 
 	assert.Equal(t, index, record.Index(), <span class="hljs-string">"index should be 0"</span>)
@@ -40,24 +40,24 @@
 	assert.Equal(t, buf, record.Data())
 }
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecordFactoryMaxSize(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecordFactoryMaxSize(t *testing.T) {
 
-	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span> = <span class="hljs-number">0</span>
+	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span>
 	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	factory := VersionOneLogRecordFactory{<span class="hljs-number">48</span>}
-	record, err := factory.NewRecord(nanos, index, flags, buf)
+	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	factory := BasicLogRecordFactory(<span class="hljs-number">48</span>)
+	record, err := factory(nanos, index, flags, buf)
 	assert.NotNil(t, err)
 	assert.Nil(t, record)
 }
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecordMarshal(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecordMarshal(t *testing.T) {
 
-	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span> = <span class="hljs-number">0</span>
+	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span>
 	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	<span class="hljs-keyword">var</span> size <span class="hljs-typename">uint32</span> = <span class="hljs-number">64</span>
 	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := BasicLogRecord{size, nanos, index, flags, buf}
 	bin, err := record.MarshalBinary()
 	assert.Nil(t, err)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test index</p></div></div><div class="code"><div class="wrapper">	i, err := xbinary.LittleEndian.Uint64(bin, <span class="hljs-number">16</span>)
 	assert.Nil(t, err)
@@ -70,33 +70,31 @@
 	assert.Equal(t, record.Flags(), f)
 }
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecordUnmarshal(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecordUnmarshal(t *testing.T) {
 
-	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span> = <span class="hljs-number">0</span>
+	<span class="hljs-keyword">var</span> index <span class="hljs-typename">uint64</span>
 	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	<span class="hljs-keyword">var</span> size <span class="hljs-typename">uint32</span> = <span class="hljs-number">64</span>
 	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	flags := DefaultRecordFlags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create record</p></div></div><div class="code"><div class="wrapper">	record := BasicLogRecord{size, nanos, index, flags, buf}
 	bin, err := record.MarshalBinary()
 	assert.Nil(t, err)
 
-	r2 := VersionOneLogRecord{}
-	err = r2.UnmarshalBinary(bin)
-	assert.Nil(t, err)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test index</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Index(), r2.Index(), <span class="hljs-string">"indexes should match"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test size</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Size(), r2.Size(), <span class="hljs-string">"size should be 64"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test time</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Time(), r2.Time())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test flags</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Flags(), r2.Flags())
+	r2, err := UnmarshalBasicLogRecord(bin)
+	assert.Nil(t, err)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test size</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Size(), r2.Size(), <span class="hljs-string">"size should be 64"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test index</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Index(), r2.Index(), <span class="hljs-string">"indexes should match"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test time</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Time(), r2.Time())</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>test flags</p></div></div><div class="code"><div class="wrapper">	assert.Equal(t, record.Flags(), r2.Flags())
 }
 
-<span class="hljs-keyword">func</span> TestVersionOneLogRecordUnmarshalFail(t *testing.T) {
+<span class="hljs-keyword">func</span> TestBasicLogRecordUnmarshalFail(t *testing.T) {
+	<span class="hljs-keyword">var</span> buf []<span class="hljs-typename">byte</span>
 
-	buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">0</span>)
-
-	r2 := VersionOneLogRecord{}
-	err := r2.UnmarshalBinary(buf)
+	r2, err := UnmarshalBasicLogRecord(buf)
 	assert.NotNil(t, err)
 	assert.Equal(t, ErrInvalidRecordSize, err)
 
 	buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">64</span>)
 	xbinary.LittleEndian.PutUint32(buf, <span class="hljs-number">0</span>, <span class="hljs-number">63</span>)
-	err = r2.UnmarshalBinary(buf)
+	r2, err = UnmarshalBasicLogRecord(buf)
 	assert.NotNil(t, err)
+	assert.Nil(t, r2)
 	assert.Equal(t, ErrInvalidRecordSize, err)
 }</div></div></div></div></body></html>

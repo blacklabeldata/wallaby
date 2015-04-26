@@ -38,9 +38,7 @@ is unrecognized.</li>
 <li><code>ErrLogClosed</code> occurs when <code>Append</code> is called after the log has been
 closed.</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrLogClosed = errors.New(<span class="hljs-string">"log has been closed"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>ErrRecordTooLarge</code> occurs when writing a record which exceed the max
-record size for the log.</p></div></div><div class="code"><div class="wrapper">    ErrRecordTooLarge = errors.New(<span class="hljs-string">"record is too large"</span>)
-
-    ErrInvalidRecordSize = errors.New(<span class="hljs-string">"invalid record size"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Log signature bytes - <code>LOG</code></p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index signature bytes - <code>IDX</code></p></div></div><div class="code"><div class="wrapper">    IndexFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"IDX"</span>)
+record size for the log.</p></div></div><div class="code"><div class="wrapper">    ErrRecordTooLarge = errors.New(<span class="hljs-string">"record is too large"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>ErrInvalidRecordSize</p></div></div><div class="code"><div class="wrapper">    ErrInvalidRecordSize = errors.New(<span class="hljs-string">"invalid record size"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>ErrInvalidSnapshot occurs when a Snapshot cannot be decoded.</p></div></div><div class="code"><div class="wrapper">    ErrInvalidSnapshot = errors.New(<span class="hljs-string">"invalid snapshot"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Log signature bytes - <code>LOG</code></p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index signature bytes - <code>IDX</code></p></div></div><div class="code"><div class="wrapper">    IndexFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"IDX"</span>)
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-constants-"><strong>Log Constants</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">const</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>DefaultIndexFlags</code> is the default boolean flags for an index file.</li>
 </ul></div></div><div class="code"><div class="wrapper">    DefaultIndexFlags = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
@@ -49,23 +47,20 @@ record size for the log.</p></div></div><div class="code"><div class="wrapper"> 
 <li><code>DefaultMaxRecordSize</code> is the default maximum size of a log record.</li>
 </ul></div></div><div class="code"><div class="wrapper">    DefaultMaxRecordSize = <span class="hljs-number">0xffff</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>LogHeaderSize</code> is the size of the file header.</li>
-</ul></div></div><div class="code"><div class="wrapper">    LogHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+</ul></div></div><div class="code"><div class="wrapper">    LogHeaderSize = <span class="hljs-number">8</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>VersionOne</code> is an integer denoting the first version</li>
 </ul></div></div><div class="code"><div class="wrapper">    VersionOne = <span class="hljs-number">1</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>VersionOneIndexHeaderSize</code> is the size of the index file header.</li>
-</ul></div></div><div class="code"><div class="wrapper">    VersionOneIndexHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneIndexHeaderSize = <span class="hljs-number">8</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>VersionOneIndexRecordSize</code> is the size of the index records.</li>
 </ul></div></div><div class="code"><div class="wrapper">    VersionOneIndexRecordSize = <span class="hljs-number">32</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>VersionOneLogHeaderSize</code> is the header size of version 1 log files</li>
-</ul></div></div><div class="code"><div class="wrapper">    VersionOneLogHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneLogHeaderSize = <span class="hljs-number">8</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>VersionOneLogRecordHeaderSize</code> is the size of the log record headers.</li>
 </ul></div></div><div class="code"><div class="wrapper">    VersionOneLogRecordHeaderSize = <span class="hljs-number">24</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>MaximumIndexSlice</code> is the maximum number of index records to be read at
 one time</li>
-</ul></div></div><div class="code"><div class="wrapper">    MaximumIndexSlice = <span class="hljs-number">32000</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
-<li><code>HeaderOffset</code> is the minimum number of bytes in the file before version
-headers begin.</li>
-</ul></div></div><div class="code"><div class="wrapper">    HeaderOffset = <span class="hljs-number">4</span>
+</ul></div></div><div class="code"><div class="wrapper">    MaximumIndexSlice = <span class="hljs-number">32000</span>
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-metadata-"><strong>Metadata</strong></h2>
 <p>Metadata simply contains descriptive information about the log</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Metadata <span class="hljs-keyword">struct</span> {
     Size             <span class="hljs-typename">int64</span>
@@ -106,7 +101,7 @@ is closed before returning.</p></div></div><div class="code"><div class="wrapper
         file.Close()
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If the file size suggests the header exists, open an existing file.
-Otherwise create a new file based on the given config.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> stat.Size() &gt;= HeaderOffset {
+Otherwise create a new file based on the given config.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> stat.Size() &gt;= LogHeaderSize {
         <span class="hljs-keyword">return</span> openExisting(file, filename, config)
     }
     <span class="hljs-keyword">return</span> createNew(file, filename, config)
