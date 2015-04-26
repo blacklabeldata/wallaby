@@ -61,8 +61,11 @@ var (
     // record size for the log.
     ErrRecordTooLarge = errors.New("record is too large")
 
-    //
+    // ErrInvalidRecordSize
     ErrInvalidRecordSize = errors.New("invalid record size")
+
+    // ErrInvalidSnapshot occurs when a Snapshot cannot be decoded.
+    ErrInvalidSnapshot = errors.New("invalid snapshot")
 
     // ## **Log Variables**
 
