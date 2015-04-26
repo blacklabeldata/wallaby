@@ -3,6 +3,7 @@ package wallaby
 
 import (
 	"encoding"
+	"hash"
 	"io"
 	"os"
 	"sync"
@@ -146,17 +147,16 @@ type LogRecord interface {
 }
 
 // ###### **LogRecordFactory**
-// `LogRecordFactory` generates new `LogRecords` from the arguments.
+
+// LogRecordFactory generates new `LogRecords` from the arguments.
 type LogRecordFactory func(nanos int64, index uint64, flags uint32, data []byte) (LogRecord, error)
 
 // ###### **BasicLogRecordFactory**
 
-// `BasicLogRecordFactory` creates a v1 log record. Each record is prefixed
-// with a header. If the record data exceeds the maximum record size, an
-// `ErrRecordTooLarge` error is returned.
-func BasicLogRecordFactory(max_size int) LogRecordFactory {
+// BasicLogRecordFactory creates a v1 log record. Each record is prefixed with a header. If the record data exceeds the maximum record size, an `ErrRecordTooLarge` error is returned.
+func BasicLogRecordFactory(maxSize int) LogRecordFactory {
 	return func(nanos int64, index uint64, flags uint32, data []byte) (LogRecord, error) {
-		if len(data) > max_size {
+		if len(data) > maxSize {
 			return nil, ErrRecordTooLarge
 		}
 		return BasicLogRecord{uint32(len(data)), nanos, index, flags, data}, nil
@@ -165,8 +165,7 @@ func BasicLogRecordFactory(max_size int) LogRecordFactory {
 
 // ### **BasicLogRecord**
 
-// `BasicLogRecord` represents an element in the log. Each record has a
-// timestamp, an index, boolean flags, a length and the data.
+// BasicLogRecord represents an element in the log. Each record has a timestamp, an index, boolean flags, a length and the data.
 type BasicLogRecord struct {
 	size  uint32
 	nanos int64
@@ -234,6 +233,9 @@ func (r BasicLogRecord) MarshalBinary() ([]byte, error) {
 	return buffer, nil
 }
 
+// ### **UnmarshalBasicLogRecord**
+
+// UnmarshalBasicLogRecord is a utility method for converting a byte array to a LogRecord. If the record is too small to contain the record header, an `ErrInvalidRecordSize` error is returned. If the size outlined in the header does not equal the size of the given buffer and the header, an `ErrInvalidRecordSize` error is also returned.
 func UnmarshalBasicLogRecord(buffer []byte) (*BasicLogRecord, error) {
 	var r BasicLogRecord
 	if len(buffer) < VersionOneLogRecordHeaderSize {
@@ -282,6 +284,8 @@ type versionOneLogFile struct {
 	flags       uint32
 	size        int64
 	state       State
+	hash        hash.Hash64
+	nanos       int64
 }
 
 // ###### *Open*
@@ -289,11 +293,16 @@ type versionOneLogFile struct {
 // `Open` simply switches the state to `OPEN`. If the log is already open, the
 // error `ErrLogAlreadyOpen` is returned.
 func (v *versionOneLogFile) Open() error {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
 	if v.state == OPEN {
 		return ErrLogAlreadyOpen
 	}
 
 	v.state = OPEN
+
+	io.Copy(v.hash, v.fd)
 	return nil
 }
 
@@ -388,13 +397,14 @@ func (v *versionOneLogFile) Append(data []byte) (LogRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	v.hash.Write(buffer)
 
 	// _, err = v.fd.Write(buffer)
 	v.writeCloser.Write(buffer)
 	if err != nil {
 		return nil, err
 	}
-
+	v.nanos = time.Now().UnixNano()
 	v.size += int64(len(buffer))
 	v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
 
@@ -410,14 +420,26 @@ func (v *versionOneLogFile) Cursor() LogCursor {
 
 // ###### *Snapshot*
 
+// Snapshot returns a Snapshot instance representing the current state of the log.
 func (v *versionOneLogFile) Snapshot() (Snapshot, error) {
-	return nil, nil
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	return BasicSnapshot{v.nanos, v.size, v.hash.Sum64()}, nil
 }
 
 // ###### *Metadata*
 
+// Metadata returns information about the log file.
 func (v *versionOneLogFile) Metadata() (Metadata, error) {
-	meta := Metadata{}
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	meta := Metadata{
+		Size:             v.size,
+		LastModifiedTime: v.nanos,
+		FileName:         v.fd.Name(),
+		IndexFileName:    v.fd.Name() + ".idx",
+	}
 	return meta, nil
 }
 

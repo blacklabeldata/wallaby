@@ -9,7 +9,9 @@ import (
     "errors"
     "os"
     "sync"
+    "time"
 
+    xxhash "github.com/OneOfOne/xxhash/native"
     "github.com/eliquious/xbinary"
 )
 
@@ -225,7 +227,7 @@ func createVersionOne(file *os.File, filename string, config Config) (WriteAhead
 
     // Finally, create the log file and return.
     return &versionOneLogFile{lock, file, atomicWriter, &header, index,
-        recordFactory, config.Flags, stat.Size(), CLOSED}, nil
+        recordFactory, config.Flags, stat.Size(), CLOSED, xxhash.New64(), time.Now().UnixNano()}, nil
 }
 
 // ### **Creates a new log file**

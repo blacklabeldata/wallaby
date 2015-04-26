@@ -12,7 +12,7 @@ import (
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a XXH64 hash of all the log entries.
 type Snapshot interface {
     Time() time.Time
-    Size() uint64
+    Size() int64
     Hash() uint64
     encoding.BinaryMarshaler
 }
@@ -22,7 +22,7 @@ type Snapshot interface {
 // BasicSnapshot represents the simplest snapshot which fulfills the Snapshot interface. The timestamp is stored as nanoseconds since epoch. Both size and hash are stored as 64-bit integers.
 type BasicSnapshot struct {
     nanos int64
-    size  uint64
+    size  int64
     hash  uint64
 }
 
@@ -36,7 +36,7 @@ func (b BasicSnapshot) Time() time.Time {
 // ###### *Size*
 
 // Size returns the number of records in the log at the time the snapshot was taken.
-func (b BasicSnapshot) Size() uint64 {
+func (b BasicSnapshot) Size() int64 {
     return b.size
 }
 
@@ -65,7 +65,7 @@ func (b BasicSnapshot) Hash() uint64 {
 func (b BasicSnapshot) MarshalBinary() ([]byte, error) {
     buffer := make([]byte, 24)
     xbinary.LittleEndian.PutInt64(buffer, 0, b.nanos)
-    xbinary.LittleEndian.PutUint64(buffer, 8, b.size)
+    xbinary.LittleEndian.PutInt64(buffer, 8, b.size)
     xbinary.LittleEndian.PutUint64(buffer, 16, b.hash)
     return buffer, nil
 }
@@ -82,7 +82,7 @@ func UnmarshalShapshot(data []byte) (Snapshot, error) {
     nanos, _ := xbinary.LittleEndian.Int64(data, 0)
     snapshot.nanos = nanos
 
-    size, _ := xbinary.LittleEndian.Uint64(data, 8)
+    size, _ := xbinary.LittleEndian.Int64(data, 8)
     snapshot.size = size
 
     hash, _ := xbinary.LittleEndian.Uint64(data, 16)
