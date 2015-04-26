@@ -17,9 +17,36 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "README.md",
         "targetPath": "index",
         "pageTitle": "index",
-        "title": "index"
+        "firstHeader": {
+          "type": "heading",
+          "data": {
+            "level": 1,
+            "title": "wallaby",
+            "slug": "wallaby",
+            "isFileHeader": true
+          },
+          "depth": 1
+        },
+        "title": "wallaby"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": []
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".md", ".markdown", ".mkd", ".mkdn", ".mdown"],
+          "commentsOnly": true,
+          "name": "Markdown"
+        },
+        "sourcePath": "/Users/mfranks/.go/src/github.com/eliquious/wallaby/formats.md",
+        "projectPath": "formats.md",
+        "targetPath": "formats",
+        "pageTitle": "formats",
+        "title": "formats"
+      },
+      "depth": 1,
+      "outline": []
     }, {
       "type": "file",
       "data": {
@@ -35,9 +62,63 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "log.go",
         "targetPath": "log",
         "pageTitle": "log",
-        "title": "log"
+        "firstHeader": {
+          "type": "heading",
+          "data": {
+            "level": 1,
+            "title": "Log Implementations",
+            "slug": "log-implementations",
+            "isFileHeader": true
+          },
+          "depth": 1,
+          "children": [
+            {
+              "type": "heading",
+              "data": {
+                "level": 3,
+                "title": "Close",
+                "slug": "close"
+              },
+              "depth": 3,
+              "children": [
+                {
+                  "type": "heading",
+                  "data": {
+                    "level": 5,
+                    "title": "Implementation",
+                    "slug": "implementation"
+                  },
+                  "depth": 5
+                }
+              ]
+            }
+          ]
+        },
+        "title": "Log Implementations"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": [
+        {
+          "type": "heading",
+          "data": {
+            "level": 3,
+            "title": "Close",
+            "slug": "close"
+          },
+          "depth": 3,
+          "children": [
+            {
+              "type": "heading",
+              "data": {
+                "level": 5,
+                "title": "Implementation",
+                "slug": "implementation"
+              },
+              "depth": 5
+            }
+          ]
+        }
+      ]
     }, {
       "type": "file",
       "data": {
@@ -55,7 +136,8 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index",
         "title": "log_index"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": []
     }, {
       "type": "file",
       "data": {
@@ -73,7 +155,8 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index_test",
         "title": "log_index_test"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": []
     }, {
       "type": "file",
       "data": {
@@ -91,7 +174,27 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_test",
         "title": "log_test"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": []
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".go"],
+          "pygmentsLexer": "go",
+          "singleLineComment": ["//"],
+          "ignorePrefix": "}",
+          "foldPrefix": "^",
+          "name": "Go"
+        },
+        "sourcePath": "/Users/mfranks/.go/src/github.com/eliquious/wallaby/snapshot.go",
+        "projectPath": "snapshot.go",
+        "targetPath": "snapshot",
+        "pageTitle": "snapshot",
+        "title": "snapshot"
+      },
+      "depth": 1,
+      "outline": []
     }, {
       "type": "file",
       "data": {
@@ -107,9 +210,142 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "wal.go",
         "targetPath": "wal",
         "pageTitle": "wal",
-        "title": "wal"
+        "firstHeader": {
+          "type": "heading",
+          "data": {
+            "level": 1,
+            "title": "wallaby - Write Ahead Log",
+            "slug": "wallaby-write-ahead-log",
+            "isFileHeader": true
+          },
+          "depth": 1,
+          "children": [
+            {
+              "type": "heading",
+              "data": {
+                "level": 6,
+                "title": "Implementation",
+                "slug": "implementation"
+              },
+              "depth": 6
+            }, {
+              "type": "heading",
+              "data": {
+                "level": 6,
+                "title": "Implentation",
+                "slug": "implentation"
+              },
+              "depth": 6
+            }, {
+              "type": "heading",
+              "data": {
+                "level": 6,
+                "title": "Implementation",
+                "slug": "implementation"
+              },
+              "depth": 6
+            }, {
+              "type": "heading",
+              "data": {
+                "level": 6,
+                "title": "Implementation",
+                "slug": "implementation"
+              },
+              "depth": 6
+            }
+          ]
+        },
+        "title": "wallaby - Write Ahead Log"
       },
-      "depth": 1
+      "depth": 1,
+      "outline": [
+        {
+          "type": "heading",
+          "data": {
+            "level": 6,
+            "title": "Implementation",
+            "slug": "implementation"
+          },
+          "depth": 6
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 6,
+            "title": "Implentation",
+            "slug": "implentation"
+          },
+          "depth": 6
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 6,
+            "title": "Implementation",
+            "slug": "implementation"
+          },
+          "depth": 6
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 6,
+            "title": "Implementation",
+            "slug": "implementation"
+          },
+          "depth": 6
+        }
+      ]
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".go"],
+          "pygmentsLexer": "go",
+          "singleLineComment": ["//"],
+          "ignorePrefix": "}",
+          "foldPrefix": "^",
+          "name": "Go"
+        },
+        "sourcePath": "/Users/mfranks/.go/src/github.com/eliquious/wallaby/writers.go",
+        "projectPath": "writers.go",
+        "targetPath": "writers",
+        "pageTitle": "writers",
+        "title": "writers"
+      },
+      "depth": 1,
+      "outline": [
+        {
+          "type": "heading",
+          "data": {
+            "level": 4,
+            "title": "Write",
+            "slug": "write"
+          },
+          "depth": 4
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 4,
+            "title": "Close",
+            "slug": "close"
+          },
+          "depth": 4
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 4,
+            "title": "Write",
+            "slug": "write"
+          },
+          "depth": 4
+        }, {
+          "type": "heading",
+          "data": {
+            "level": 4,
+            "title": "Close",
+            "slug": "close"
+          },
+          "depth": 4
+        }
+      ]
     }
   ];
 

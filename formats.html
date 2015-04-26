@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="en"><head><title>formats</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="formats"><meta name="groc-project-path" content="formats.md"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/formats.md">formats.md</a></div></div><div id="document"><div class="segment"><div class="comments "><div class="wrapper"><h1 id="-file-formats-"><strong>File Formats</strong></h1>
+<p>All the file formats are outlined below including the header and record 
+contents.</p>
+<h2 id="-log-file-"><strong>Log file</strong></h2>
+<p>Log files contain all the log records.</p>
+<h4 id="-log-file-header-"><em>Log File Header</em></h4>
+<p>Log files are prefixed with an 8-byte header. The header contains the file
+signature <code>LOG</code>, an 8-bit version followed by an unsigned 32-bit integer for 
+boolean flags.</p>
+<h4 id="-log-records-"><em>Log Records</em></h4>
+<p>Each log record has a 24-byte header followed by the record data. The header
+consists of:</p>
+<pre><code>4-byte size
+4-byte flags
+8-byte time
+8-byte index
+data
+
+0        8        16       24
++--------+--------+--------+--------+--------+--------+
+| s + f  |  time  |  index |           data           |
++--------+--------+--------+--------+--------+--------+</code></pre>
+<ul>
+<li>an unsigned 32-bit integer for the size (max 4GB) size</li>
+<li>an unsigned 32-bit integer for any boolean flags</li>
+<li>a signed 64-bit integer for the timestamp in nanoseconds</li>
+<li>an unsigned 64-bit record index</li>
+</ul>
+<p>Record data immediately follows the header.</p>
+<h2 id="-index-file-"><strong>Index file</strong></h2>
+<p>Index files contain all the offsets for each record in the log. Index 
+records are fixed-length and therefore the index is easy to search for specific
+records.</p>
+<h4 id="-index-file-header-"><em>Index File Header</em></h4>
+<p>Index files are prefixed by a 3-byte signature, <code>IDX</code>, an 8-bit version 
+followed by an unsigned 32-bit integer for boolean flags.</p>
+<h4 id="-index-records-"><em>Index Records</em></h4>
+<p>Index records are fixed-width at 32-bytes long. Each record consists of:</p>
+<pre><code>8-byte int64  timestamp
+8-byte uint64 index
+8-byte offset int64
+8-byte ttl    int64
+
+0        8        16       24       32
++--------+--------+--------+--------+
+|  time  |  index | offset |   ttl  |
++--------+--------+--------+--------+</code></pre>
+<ul>
+<li>a signed 64-bit integer for the timestamp<ul>
+<li><strong>Units:</strong> nanoseconds since epoch began</li>
+</ul>
+</li>
+<li>an unsigned 64-bit integer for the record index</li>
+<li>a signed 64-bit integer for the log file offset</li>
+<li>a signed 64-bit integer for the time to live<ul>
+<li><strong>Units:</strong> nanoseconds</li>
+</ul>
+</li>
+</ul></div></div></div></div></body></html>

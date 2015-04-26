@@ -1,12 +1,11 @@
-<!DOCTYPE html><html lang="en"><head><title>wal</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="wal"><meta name="groc-project-path" content="wal.go"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/wal.go">wal.go</a></div></div><div id="document"><div class="segment"><div class="comments "><div class="wrapper"><h1 id="wallaby-write-ahead-log">wallaby - Write Ahead Log</h1></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Imports go here</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">package</span> wallaby
+<!DOCTYPE html><html lang="en"><head><title>wal</title></head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0"><meta name="groc-relative-root" content=""><meta name="groc-document-path" content="wal"><meta name="groc-project-path" content="wal.go"><meta name="groc-github-url" content="https://github.com/eliquious/wallaby"><link rel="stylesheet" type="text/css" media="all" href="assets/style.css"><script type="text/javascript" src="assets/behavior.js"></script><body><div id="meta"><div class="file-path"><a href="https://github.com/eliquious/wallaby/blob/master/wal.go">wal.go</a></div></div><div id="document"><div class="segment"><div class="comments "><div class="wrapper"><h1 id="wallaby-write-ahead-log">wallaby - Write Ahead Log</h1>
+<p>This file contains all of the errors, constants and entry points for wallaby.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">package</span> wallaby
 
 <span class="hljs-keyword">import</span> (
     <span class="hljs-string">"bytes"</span>
     <span class="hljs-string">"errors"</span>
-    <span class="hljs-string">"io"</span>
     <span class="hljs-string">"os"</span>
     <span class="hljs-string">"sync"</span>
-    <span class="hljs-string">"time"</span>
 
     <span class="hljs-string">"github.com/eliquious/xbinary"</span>
 )</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-possible-log-errors-"><strong>Possible Log Errors</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
@@ -35,31 +34,59 @@ is unrecognized.</li>
 <li><code>ErrWriteLogRecord</code> occurs when a record fails to be written to the log</li>
 </ul></div></div><div class="code"><div class="wrapper">    ErrWriteLogRecord = errors.New(<span class="hljs-string">"failed to write record"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
 <li><code>ErrLogAlreadyOpen</code> occurs when an open log tries to be opened again</li>
-</ul></div></div><div class="code"><div class="wrapper">    ErrLogAlreadyOpen = errors.New(<span class="hljs-string">"log already open"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2>
-<p>File signature bytes</p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)
-)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-constants-"><strong>Log Constants</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">const</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>FlagsDefault is the default boolean flags for an index file</p></div></div><div class="code"><div class="wrapper">    DefaultIndexFlags = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOne is an integer denoting the first version</p></div></div><div class="code"><div class="wrapper">    VersionOne                = <span class="hljs-number">1</span>
-    VersionOneIndexHeaderSize = <span class="hljs-number">4</span>
-    VersionOneIndexRecordSize = <span class="hljs-number">24</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOneLogHeaderSize is the header size of version 1 log files</p></div></div><div class="code"><div class="wrapper">    VersionOneLogHeaderSize = <span class="hljs-number">8</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>MaximumIndexSlice is the maximum number of index records to be read at one time</p></div></div><div class="code"><div class="wrapper">    MaximumIndexSlice = <span class="hljs-number">32000</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>HeaderOffset is the minimum number of bytes in the file before version headers begin.</p></div></div><div class="code"><div class="wrapper">    HeaderOffset = <span class="hljs-number">4</span>
-)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a CRC64 of all the log entries.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Snapshot <span class="hljs-keyword">interface</span> {
-    Time() time.Time
-    Size() <span class="hljs-typename">uint64</span>
-    Hash() <span class="hljs-typename">uint64</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Metadata simply contains descriptive information aboutt the log</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Metadata <span class="hljs-keyword">struct</span> {
+</ul></div></div><div class="code"><div class="wrapper">    ErrLogAlreadyOpen = errors.New(<span class="hljs-string">"log already open"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>ErrLogClosed</code> occurs when <code>Append</code> is called after the log has been
+closed.</li>
+</ul></div></div><div class="code"><div class="wrapper">    ErrLogClosed = errors.New(<span class="hljs-string">"log has been closed"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>ErrRecordTooLarge</code> occurs when writing a record which exceed the max
+record size for the log.</p></div></div><div class="code"><div class="wrapper">    ErrRecordTooLarge = errors.New(<span class="hljs-string">"record is too large"</span>)
+
+    ErrInvalidRecordSize = errors.New(<span class="hljs-string">"invalid record size"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-variables-"><strong>Log Variables</strong></h2></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Log signature bytes - <code>LOG</code></p></div></div><div class="code"><div class="wrapper">    LogFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"LOG"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index signature bytes - <code>IDX</code></p></div></div><div class="code"><div class="wrapper">    IndexFileSignature = []<span class="hljs-typename">byte</span>(<span class="hljs-string">"IDX"</span>)
+)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-log-constants-"><strong>Log Constants</strong></h2></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">const</span> (</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>DefaultIndexFlags</code> is the default boolean flags for an index file.</li>
+</ul></div></div><div class="code"><div class="wrapper">    DefaultIndexFlags = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>DefaultRecordFlags</code> represents the default boolean flags for each log record.</li>
+</ul></div></div><div class="code"><div class="wrapper">    DefaultRecordFlags <span class="hljs-typename">uint32</span> = <span class="hljs-number">0</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>DefaultMaxRecordSize</code> is the default maximum size of a log record.</li>
+</ul></div></div><div class="code"><div class="wrapper">    DefaultMaxRecordSize = <span class="hljs-number">0xffff</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>LogHeaderSize</code> is the size of the file header.</li>
+</ul></div></div><div class="code"><div class="wrapper">    LogHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>VersionOne</code> is an integer denoting the first version</li>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOne = <span class="hljs-number">1</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>VersionOneIndexHeaderSize</code> is the size of the index file header.</li>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneIndexHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>VersionOneIndexRecordSize</code> is the size of the index records.</li>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneIndexRecordSize = <span class="hljs-number">32</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>VersionOneLogHeaderSize</code> is the header size of version 1 log files</li>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneLogHeaderSize = <span class="hljs-number">4</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>VersionOneLogRecordHeaderSize</code> is the size of the log record headers.</li>
+</ul></div></div><div class="code"><div class="wrapper">    VersionOneLogRecordHeaderSize = <span class="hljs-number">24</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>MaximumIndexSlice</code> is the maximum number of index records to be read at
+one time</li>
+</ul></div></div><div class="code"><div class="wrapper">    MaximumIndexSlice = <span class="hljs-number">32000</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><ul>
+<li><code>HeaderOffset</code> is the minimum number of bytes in the file before version
+headers begin.</li>
+</ul></div></div><div class="code"><div class="wrapper">    HeaderOffset = <span class="hljs-number">4</span>
+)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-metadata-"><strong>Metadata</strong></h2>
+<p>Metadata simply contains descriptive information about the log</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Metadata <span class="hljs-keyword">struct</span> {
     Size             <span class="hljs-typename">int64</span>
     LastModifiedTime <span class="hljs-typename">int64</span>
     FileName         <span class="hljs-typename">string</span>
     IndexFileName    <span class="hljs-typename">string</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Config stores several log settings.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Config <span class="hljs-keyword">struct</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-config-"><strong>Config</strong></h2>
+<p>Config stores several log settings. This is used to describe how the log
+should be opened.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> Config <span class="hljs-keyword">struct</span> {
     FileMode      os.FileMode
     MaxRecordSize <span class="hljs-typename">int</span>
     Flags         <span class="hljs-typename">uint32</span>
     Version       <span class="hljs-typename">uint8</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>DefaultConfig will be used if the given config is nil.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> DefaultConfig Config = Config{
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><blockquote>
+<p><code>DefaultConfig</code> can be used for sensible default log configuration.</p>
+</blockquote></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">var</span> DefaultConfig Config = Config{
     FileMode:      <span class="hljs-number">0600</span>,
     MaxRecordSize: DefaultMaxRecordSize,
     Flags:         DefaultRecordFlags,
     Version:       VersionOne,
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-open-log-file-"><strong>Open log file</strong></h2>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-open-a-log-file-"><strong>Open a log file</strong></h2>
 <p>Open returns a <code>WriteAheadLog</code> implementation if no errors occur. If the
 given filename already exists, the log file will try to be opened. If the
 file format can be verified, the existing log will be returned. If the
@@ -81,138 +108,31 @@ is closed before returning.</p></div></div><div class="code"><div class="wrapper
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If the file size suggests the header exists, open an existing file.
 Otherwise create a new file based on the given config.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> stat.Size() &gt;= HeaderOffset {
         <span class="hljs-keyword">return</span> openExisting(file, filename, config)
-    } <span class="hljs-keyword">else</span> {
-        <span class="hljs-keyword">return</span> createNew(file, filename, config)
     }
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-version-one-log-file-"><strong>Version One Log File</strong></h2>
-<p><code>versionOneLogFile</code> is obviously v1 of the WAL. It is the first class which
-implements the <code>WriteAheadLog</code> interface. However, it is not a public
-type. Wallaby strives to maintain a clean API and hence uses interfaces to
-abstract specific implementations.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> versionOneLogFile <span class="hljs-keyword">struct</span> {
-    lock        sync.Mutex
-    fd          *os.File
-    writeCloser io.WriteCloser
-    header      FileHeader
-    index       LogIndex
-    factory     VersionOneLogRecordFactory
-    flags       <span class="hljs-typename">uint32</span>
-    size        <span class="hljs-typename">int64</span>
-    state       State
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Open</code> simply switches the state to <code>OPEN</code>. If the log is already open, the
-error <code>ErrLogAlreadyOpen</code> is returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Open() error {
-    <span class="hljs-keyword">if</span> v.state == OPEN {
-        <span class="hljs-keyword">return</span> ErrLogAlreadyOpen
-    }
-
-    v.state = OPEN
-    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Pipe</code> will read a <code>limited</code> number of the log records beginning at the
-<code>offset</code> given. All the these records will be serialized into a byte array
-and written to the given <code>io.Writer</code>. If there was an error either converting
-the record or writing to the given <code>io.Writer</code>, the encountered error will be
-returned.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Pipe(offset, limit <span class="hljs-typename">uint64</span>, writer io.Writer) error {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a new record cursor, closing it when exiting the function.</p></div></div><div class="code"><div class="wrapper">    cur := v.Cursor()
-    <span class="hljs-keyword">defer</span> cur.Close()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Seek to the given <code>offset</code> and read the records until the number of
-requested records are read or an error occurs.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">for</span> record, err := cur.Seek(offset); err != <span class="hljs-constant">nil</span> &amp;&amp; record.Index() &lt; limit+offset; record, err = cur.Next() {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Marshal the record into a byte array returning the error if there
-is one.</p></div></div><div class="code"><div class="wrapper">        data, e := record.MarshalBinary()
-        <span class="hljs-keyword">if</span> e != <span class="hljs-constant">nil</span> {
-            <span class="hljs-keyword">return</span> e
-        }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the byte array to the given <code>writer</code> returning the error if
-there is one.</p></div></div><div class="code"><div class="wrapper">        _, e = writer.Write(data)
-        <span class="hljs-keyword">if</span> e != <span class="hljs-constant">nil</span> {
-            <span class="hljs-keyword">return</span> e
-        }
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Success. Return a <code>nil</code> error.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>State</code> allows the log state to be queried by returning the current state of
-the log.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) State() State {
-    <span class="hljs-keyword">return</span> v.state
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p><code>Use</code> allows middleware to modify the log&#39;s behavior. <code>DecorativeWriteClosers</code>
-are the vehicle while makes this possible. They wrap the internal writer
-with additional capabilities such as using different buffering strategies.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Only apply the middleware is the log is <code>CLOSED</code>. The log remains
-in this state until <code>Open</code> is called.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> v.state == CLOSED {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Iterate over all the <code>DecorativeWriteClosers</code> replacing the internal
-writer with the new one.</p></div></div><div class="code"><div class="wrapper">        <span class="hljs-keyword">for</span> _, writer := <span class="hljs-keyword">range</span> writers {
-            v.writeCloser = writer(v.writeCloser)
-        }
-    }
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Append(data []<span class="hljs-typename">byte</span>) (LogRecord, error) {
-    index := v.index.Size()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create log record</p></div></div><div class="code"><div class="wrapper">    record, err := v.factory.NewRecord(time.Now().UnixNano(), index, v.flags, data)
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrWriteLogRecord
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>binary record</p></div></div><div class="code"><div class="wrapper">    buffer, err := record.MarshalBinary()
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>v.fd.Write()</p></div></div><div class="code"><div class="wrapper">    _, err = v.fd.Write(buffer)
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-    }
-
-    v.size += <span class="hljs-typename">int64</span>(<span class="hljs-built_in">len</span>(buffer))
-    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), <span class="hljs-typename">int64</span>(v.size), <span class="hljs-number">0</span>})</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return newly created record</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> record, <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Cursor() Cursor {
-    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Snapshot() (Snapshot, error) {
-    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Metadata() (Metadata, error) {
-    meta := Metadata{}
-    <span class="hljs-keyword">return</span> meta, <span class="hljs-constant">nil</span>
-}
-
-<span class="hljs-keyword">func</span> (v *versionOneLogFile) Recover() error {
-    <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Close closes the underlying file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (v *versionOneLogFile) Close() error {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Set state as CLOSED</p></div></div><div class="code"><div class="wrapper">    v.state = CLOSED</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>sync any last changes to disk</p></div></div><div class="code"><div class="wrapper">    err := v.fd.Sync()
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> err
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>close file handle</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> v.fd.Close()
+    <span class="hljs-keyword">return</span> createNew(file, filename, config)
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h2 id="-utility-functions-"><strong>Utility functions</strong></h2>
-<h3 id="-creates-a-version-one-log-file-"><strong>Creates a version one log file</strong></h3>
-<p>Creates</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> createVersionOne(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create boolean flags</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">var</span> flags <span class="hljs-typename">uint32</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read file size</p></div></div><div class="code"><div class="wrapper">    stat, err := file.Stat()
-    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-    }
-    size := stat.Size()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create header buf</p></div></div><div class="code"><div class="wrapper">    buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexHeaderSize)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>determine if it&#39;s a new file or not
-By this point, the file is gauranteed to have at least 4 bytes.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> size &gt; HeaderOffset {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read file header, close and return upon error</p></div></div><div class="code"><div class="wrapper">        _, err := file.ReadAt(buf, HeaderOffset)
-        <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-            file.Close()
-            <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-        }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read flags</p></div></div><div class="code"><div class="wrapper">        f, err := xbinary.LittleEndian.Uint32(buf, VersionOneIndexHeaderSize)
-        <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-            file.Close()
-            <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-        }
-        flags = f
-    } <span class="hljs-keyword">else</span> {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write boolean flags into header buffer</p></div></div><div class="code"><div class="wrapper">        xbinary.LittleEndian.PutUint32(buf, <span class="hljs-number">0</span>, config.Flags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write version header to file</p></div></div><div class="code"><div class="wrapper">        _, err := file.Write(buf)
-        <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-            file.Close()
-            <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-        }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>flush data to disk</p></div></div><div class="code"><div class="wrapper">        err = file.Sync()
-        <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
-            <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrWriteLogHeader
-        }
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create header</p></div></div><div class="code"><div class="wrapper">    header := BasicFileHeader{flags: flags, version: VersionOne}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create version one log file</p></div></div><div class="code"><div class="wrapper">    factory := VersionOneIndexFactory{filename + <span class="hljs-string">".idx"</span>}
-    record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
-    index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+<p>These functions assist in opening both new and existing log files.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-creates-a-v1-log-file-"><strong>Creates a v1 log file</strong></h3>
+<p>This function is used when creating a v1 log file.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="-implementation-"><em>Implementation</em></h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> createVersionOne(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create the file header structure from the log flags and version.</p></div></div><div class="code"><div class="wrapper">    header := BasicFileHeader{flags: config.Flags, version: config.Version}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create the index file. If the file cannot be created, close the file
+and return the error.</p></div></div><div class="code"><div class="wrapper">    index, err := VersionOneIndexFactory(filename+<span class="hljs-string">".idx"</span>, config.Version, config.Flags)
     <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
         file.Close()
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
-    }
-
-    <span class="hljs-keyword">var</span> lock sync.Mutex
-    log := &amp;versionOneLogFile{lock, file, file, &amp;header, index, record_factory, config.Flags, <span class="hljs-typename">int64</span>(size), CLOSED}
-
-    <span class="hljs-keyword">return</span> log, <span class="hljs-constant">nil</span>
+    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create the record factory. All records will be created using this
+factory.</p></div></div><div class="code"><div class="wrapper">    recordFactory := BasicLogRecordFactory(config.MaxRecordSize)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Stat the file to get the size. If unsuccessful, close the file and return
+the error.</p></div></div><div class="code"><div class="wrapper">    stat, err := file.Stat()
+    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
+        file.Close()
+        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
+    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a lock for the log and wrap the file in an atomic writer. The
+atomic writer syncs to disk after each write.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">var</span> lock sync.Mutex
+    atomicWriter := NewAtomicWriter(file)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Finally, create the log file and return.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">return</span> &amp;versionOneLogFile{lock, file, atomicWriter, &amp;header, index,
+        recordFactory, config.Flags, stat.Size(), CLOSED}, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-creates-a-new-log-file-"><strong>Creates a new log file</strong></h3>
 <p>A new log file is created with a file header consisting of a <code>LOG</code> signature
 followed by an 8-bit version. The file header is then synced to disk and
-a new log is created.</p>
-<h6 id="implentation">Implentation</h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> createNew(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a buffer for the 4-byte file header.
-The first 3 bytes are the signature <code>LOG</code> followed by an 8-bit version.</p></div></div><div class="code"><div class="wrapper">    buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">4</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the <code>LOG</code> file signature to the first 3 bytes of the file.</p></div></div><div class="code"><div class="wrapper">    xbinary.LittleEndian.PutString(buf, <span class="hljs-number">0</span>, <span class="hljs-string">"LOG"</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Set file version to the given <code>config.Version</code>.</p></div></div><div class="code"><div class="wrapper">    buf[<span class="hljs-number">3</span>] = <span class="hljs-typename">byte</span>(config.Version)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the file header buffer to the file.</p></div></div><div class="code"><div class="wrapper">    _, err := file.Write(buf)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If the header could not be written, close the file and return a
+a new log is created.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="implentation">Implentation</h6></div></div></div><div class="segment"><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> createNew(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a buffer for the 4-byte file header.
+The first 3 bytes contain the signature, <code>LOG</code>, followed by an 8-bit
+version.</p></div></div><div class="code"><div class="wrapper">    buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">8</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the <code>LOG</code> file signature to the first 3 bytes of the file.</p></div></div><div class="code"><div class="wrapper">    xbinary.LittleEndian.PutString(buf, <span class="hljs-number">0</span>, <span class="hljs-typename">string</span>(LogFileSignature))</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Set file version to the given <code>config.Version</code>.</p></div></div><div class="code"><div class="wrapper">    buf[<span class="hljs-number">3</span>] = <span class="hljs-typename">byte</span>(config.Version)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the config flags into the buffer</p></div></div><div class="code"><div class="wrapper">    xbinary.LittleEndian.PutUint32(buf, <span class="hljs-number">4</span>, config.Flags)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Write the file header buffer to the file.</p></div></div><div class="code"><div class="wrapper">    _, err := file.Write(buf)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If the header could not be written, close the file and return a
 <code>ErrWriteLogHeader</code> error along with a <code>nil</code> log.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
         file.Close()
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrWriteLogHeader
@@ -224,24 +144,32 @@ The first 3 bytes are the signature <code>LOG</code> followed by an 8-bit versio
 <p>Opens an existing file and returns a log based on the file header. If the
 file contains a version which is not understood, the error
 <code>ErrInvalidFileVersion</code> is returned along with a <code>nil</code> log.</p>
-<p>If the file header cannot be read, an error is also returned.</p>
-<h6 id="implementation">Implementation</h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> openExisting(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a buffer for the 4-byte file header.
-The first 3 bytes are the signature <code>LOG</code> followed by an 8-bit version.</p></div></div><div class="code"><div class="wrapper">    buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">4</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Read the file header into the buffer</p></div></div><div class="code"><div class="wrapper">    _, err := file.ReadAt(buf, <span class="hljs-number">0</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If there was an error reading the file header, close the file and return
+<p>If the file header cannot be read, an error is also returned.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="implementation">Implementation</h6></div></div></div><div class="segment"><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> openExisting(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Create a buffer for the 8-byte file header.
+The first 3 bytes are the signature <code>LOG</code> followed by an 8-bit version
+and the boolean flags. Then read the file header into the buffer.</p></div></div><div class="code"><div class="wrapper">    buf := <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">8</span>)
+    _, err := file.ReadAt(buf, <span class="hljs-number">0</span>)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If there was an error reading the file header, close the file and return
 a nil log and the read error.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
         file.Close()
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
     }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>If the header was read sucessfully, verify the file signature matches
-the expected signature. If the first 3 bytes do not match <code>LOG</code>, return
-a <code>nil</code> log and a <code>ErrInvalidFileSignature</code>.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> !bytes.Equal(buf[<span class="hljs-number">0</span>:<span class="hljs-number">3</span>], LogFileSignature) {
+the expected &quot;LOG&quot; signature. If the first 3 bytes do not match <code>LOG</code>,
+return a <code>nil</code> log and a <code>ErrInvalidFileSignature</code>.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">if</span> !bytes.Equal(buf[<span class="hljs-number">0</span>:<span class="hljs-number">3</span>], LogFileSignature) {
         <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrInvalidFileSignature
-    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Returns the proper log parser based on the given version</p></div></div><div class="code"><div class="wrapper">    config.Version = <span class="hljs-typename">uint8</span>(buf[<span class="hljs-number">3</span>])
+    }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Read the boolean flags from the file header and overwrite the config
+flags with the ones from the file.</p></div></div><div class="code"><div class="wrapper">    flags, err := xbinary.LittleEndian.Uint32(buf, <span class="hljs-number">4</span>)
+    <span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
+        <span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, err
+    }
+    config.Flags = flags</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>The config version is updated to reflect the actual version of the file.
+Then return the proper log parser based on the file version.</p></div></div><div class="code"><div class="wrapper">    config.Version = <span class="hljs-typename">uint8</span>(buf[<span class="hljs-number">3</span>])
     <span class="hljs-keyword">return</span> selectVersion(file, filename, config)
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h3 id="-select-log-version-"><strong>Select log version</strong></h3>
 <p><code>selectVersion</code> is only here to make the code a bit <code>DRY</code>er. It simple
-returns the proper log file based on the given version.</p>
-<h6 id="implementation">Implementation</h6></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> selectVersion(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Open the log file based on the current version of the file.
+returns the proper log file based on the given version.</p></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><h6 id="implementation">Implementation</h6>
+<p>Open the log file based on the current version of the file.
 If the version is unrecognized, a <code>nil</code> log is returned as well as an
-<code>ErrInvalidFileVersion</code> error.</p></div></div><div class="code"><div class="wrapper">    <span class="hljs-keyword">switch</span> config.Version {
+<code>ErrInvalidFileVersion</code> error.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> selectVersion(file *os.File, filename <span class="hljs-typename">string</span>, config Config) (WriteAheadLog, error) {
+    <span class="hljs-keyword">switch</span> config.Version {
     <span class="hljs-keyword">case</span> VersionOne:
         <span class="hljs-keyword">return</span> createVersionOne(file, filename, config)
     <span class="hljs-keyword">default</span>:
