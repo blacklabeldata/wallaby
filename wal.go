@@ -1,16 +1,14 @@
 // # wallaby - Write Ahead Log
-
-// Imports go here
-
+//
+// This file contains all of the errors, constants and entry points for wallaby.
+//
 package wallaby
 
 import (
     "bytes"
     "errors"
-    "io"
     "os"
     "sync"
-    "time"
 
     "github.com/eliquious/xbinary"
 )
@@ -55,40 +53,67 @@ var (
     // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened again
     ErrLogAlreadyOpen = errors.New("log already open")
 
+    // - `ErrLogClosed` occurs when `Append` is called after the log has been
+    // closed.
+    ErrLogClosed = errors.New("log has been closed")
+
+    // `ErrRecordTooLarge` occurs when writing a record which exceed the max
+    // record size for the log.
+    ErrRecordTooLarge = errors.New("record is too large")
+
+    //
+    ErrInvalidRecordSize = errors.New("invalid record size")
+
     // ## **Log Variables**
-    // File signature bytes
+
+    // Log signature bytes - `LOG`
     LogFileSignature = []byte("LOG")
+
+    // Index signature bytes - `IDX`
+    IndexFileSignature = []byte("IDX")
 )
 
 // ## **Log Constants**
 
 const (
-    // FlagsDefault is the default boolean flags for an index file
+    // - `DefaultIndexFlags` is the default boolean flags for an index file.
     DefaultIndexFlags = 0
 
-    // VersionOne is an integer denoting the first version
-    VersionOne                = 1
+    // - `DefaultRecordFlags` represents the default boolean flags for each log record.
+    DefaultRecordFlags uint32 = 0
+
+    // - `DefaultMaxRecordSize` is the default maximum size of a log record.
+    DefaultMaxRecordSize = 0xffff
+
+    // - `LogHeaderSize` is the size of the file header.
+    LogHeaderSize = 4
+
+    // - `VersionOne` is an integer denoting the first version
+    VersionOne = 1
+
+    // - `VersionOneIndexHeaderSize` is the size of the index file header.
     VersionOneIndexHeaderSize = 4
-    VersionOneIndexRecordSize = 24
 
-    // VersionOneLogHeaderSize is the header size of version 1 log files
-    VersionOneLogHeaderSize = 8
+    // - `VersionOneIndexRecordSize` is the size of the index records.
+    VersionOneIndexRecordSize = 32
 
-    // MaximumIndexSlice is the maximum number of index records to be read at one time
+    // - `VersionOneLogHeaderSize` is the header size of version 1 log files
+    VersionOneLogHeaderSize = 4
+
+    // - `VersionOneLogRecordHeaderSize` is the size of the log record headers.
+    VersionOneLogRecordHeaderSize = 24
+
+    // - `MaximumIndexSlice` is the maximum number of index records to be read at
+    // one time
     MaximumIndexSlice = 32000
 
-    // HeaderOffset is the minimum number of bytes in the file before version headers begin.
+    // - `HeaderOffset` is the minimum number of bytes in the file before version
+    // headers begin.
     HeaderOffset = 4
 )
 
-// Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a CRC64 of all the log entries.
-type Snapshot interface {
-    Time() time.Time
-    Size() uint64
-    Hash() uint64
-}
-
-// Metadata simply contains descriptive information aboutt the log
+// ## **Metadata**
+// Metadata simply contains descriptive information about the log
 type Metadata struct {
     Size             int64
     LastModifiedTime int64
@@ -96,7 +121,9 @@ type Metadata struct {
     IndexFileName    string
 }
 
-// Config stores several log settings.
+// ## **Config**
+// Config stores several log settings. This is used to describe how the log
+// should be opened.
 type Config struct {
     FileMode      os.FileMode
     MaxRecordSize int
@@ -104,7 +131,7 @@ type Config struct {
     Version       uint8
 }
 
-// DefaultConfig will be used if the given config is nil.
+// > `DefaultConfig` can be used for sensible default log configuration.
 var DefaultConfig Config = Config{
     FileMode:      0600,
     MaxRecordSize: DefaultMaxRecordSize,
@@ -112,7 +139,7 @@ var DefaultConfig Config = Config{
     Version:       VersionOne,
 }
 
-// ## **Open log file**
+// ## **Open a log file**
 // Open returns a `WriteAheadLog` implementation if no errors occur. If the
 // given filename already exists, the log file will try to be opened. If the
 // file format can be verified, the existing log will be returned. If the
@@ -156,246 +183,73 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
     // Otherwise create a new file based on the given config.
     if stat.Size() >= HeaderOffset {
         return openExisting(file, filename, config)
-    } else {
-        return createNew(file, filename, config)
     }
-}
-
-// ## **Version One Log File**
-//
-// `versionOneLogFile` is obviously v1 of the WAL. It is the first class which
-// implements the `WriteAheadLog` interface. However, it is not a public
-// type. Wallaby strives to maintain a clean API and hence uses interfaces to
-// abstract specific implementations.
-type versionOneLogFile struct {
-    lock        sync.Mutex
-    fd          *os.File
-    writeCloser io.WriteCloser
-    header      FileHeader
-    index       LogIndex
-    factory     VersionOneLogRecordFactory
-    flags       uint32
-    size        int64
-    state       State
-}
-
-// `Open` simply switches the state to `OPEN`. If the log is already open, the
-// error `ErrLogAlreadyOpen` is returned.
-func (v *versionOneLogFile) Open() error {
-    if v.state == OPEN {
-        return ErrLogAlreadyOpen
-    }
-
-    v.state = OPEN
-    return nil
-}
-
-// `Pipe` will read a `limited` number of the log records beginning at the
-// `offset` given. All the these records will be serialized into a byte array
-// and written to the given `io.Writer`. If there was an error either converting
-// the record or writing to the given `io.Writer`, the encountered error will be
-// returned.
-func (v *versionOneLogFile) Pipe(offset, limit uint64, writer io.Writer) error {
-
-    // Create a new record cursor, closing it when exiting the function.
-    cur := v.Cursor()
-    defer cur.Close()
-
-    // Seek to the given `offset` and read the records until the number of
-    // requested records are read or an error occurs.
-    for record, err := cur.Seek(offset); err != nil && record.Index() < limit+offset; record, err = cur.Next() {
-
-        // Marshal the record into a byte array returning the error if there
-        // is one.
-        data, e := record.MarshalBinary()
-        if e != nil {
-            return e
-        }
-
-        // Write the byte array to the given `writer` returning the error if
-        // there is one.
-        _, e = writer.Write(data)
-        if e != nil {
-            return e
-        }
-    }
-
-    // Success. Return a `nil` error.
-    return nil
-}
-
-// `State` allows the log state to be queried by returning the current state of
-// the log.
-func (v *versionOneLogFile) State() State {
-    return v.state
-}
-
-// `Use` allows middleware to modify the log's behavior. `DecorativeWriteClosers`
-// are the vehicle while makes this possible. They wrap the internal writer
-// with additional capabilities such as using different buffering strategies.
-func (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
-
-    // Only apply the middleware is the log is `CLOSED`. The log remains
-    // in this state until `Open` is called.
-    if v.state == CLOSED {
-
-        // Iterate over all the `DecorativeWriteClosers` replacing the internal
-        // writer with the new one.
-        for _, writer := range writers {
-            v.writeCloser = writer(v.writeCloser)
-        }
-    }
-}
-
-func (v *versionOneLogFile) Append(data []byte) (LogRecord, error) {
-    index := v.index.Size()
-
-    // create log record
-    record, err := v.factory.NewRecord(time.Now().UnixNano(), index, v.flags, data)
-    if err != nil {
-        return nil, ErrWriteLogRecord
-    }
-
-    // binary record
-    buffer, err := record.MarshalBinary()
-    if err != nil {
-        return nil, err
-    }
-
-    // v.fd.Write()
-    _, err = v.fd.Write(buffer)
-    if err != nil {
-        return nil, err
-    }
-
-    v.size += int64(len(buffer))
-    v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
-
-    // return newly created record
-    return record, nil
-}
-
-func (v *versionOneLogFile) Cursor() Cursor {
-    return nil
-}
-
-func (v *versionOneLogFile) Snapshot() (Snapshot, error) {
-    return nil, nil
-}
-
-func (v *versionOneLogFile) Metadata() (Metadata, error) {
-    meta := Metadata{}
-    return meta, nil
-}
-
-func (v *versionOneLogFile) Recover() error {
-    return nil
-}
-
-// Close closes the underlying file.
-func (v *versionOneLogFile) Close() error {
-    // Set state as CLOSED
-    v.state = CLOSED
-
-    // sync any last changes to disk
-    err := v.fd.Sync()
-    if err != nil {
-        return err
-    }
-
-    // close file handle
-    return v.fd.Close()
+    return createNew(file, filename, config)
 }
 
 // ## **Utility functions**
-//
-// ### **Creates a version one log file**
-// Creates
+// These functions assist in opening both new and existing log files.
+
+// ### **Creates a v1 log file**
+// This function is used when creating a v1 log file.
+
+// ###### *Implementation*
 func createVersionOne(file *os.File, filename string, config Config) (WriteAheadLog, error) {
 
-    // create boolean flags
-    var flags uint32
+    // Create the file header structure from the log flags and version.
+    header := BasicFileHeader{flags: config.Flags, version: config.Version}
 
-    // read file size
-    stat, err := file.Stat()
-    if err != nil {
-        return nil, err
-    }
-    size := stat.Size()
-
-    // create header buf
-    buf := make([]byte, VersionOneIndexHeaderSize)
-
-    // determine if it's a new file or not
-    // By this point, the file is gauranteed to have at least 4 bytes.
-    if size > HeaderOffset {
-        // read file header, close and return upon error
-        _, err := file.ReadAt(buf, HeaderOffset)
-        if err != nil {
-            file.Close()
-            return nil, err
-        }
-
-        // read flags
-        f, err := xbinary.LittleEndian.Uint32(buf, VersionOneIndexHeaderSize)
-        if err != nil {
-            file.Close()
-            return nil, err
-        }
-        flags = f
-    } else {
-
-        // write boolean flags into header buffer
-        xbinary.LittleEndian.PutUint32(buf, 0, config.Flags)
-
-        // write version header to file
-        _, err := file.Write(buf)
-        if err != nil {
-            file.Close()
-            return nil, err
-        }
-
-        // flush data to disk
-        err = file.Sync()
-        if err != nil {
-            return nil, ErrWriteLogHeader
-        }
-    }
-
-    // create header
-    header := BasicFileHeader{flags: flags, version: VersionOne}
-
-    // create version one log file
-    factory := VersionOneIndexFactory{filename + ".idx"}
-    record_factory := VersionOneLogRecordFactory{config.MaxRecordSize}
-    index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+    // Create the index file. If the file cannot be created, close the file
+    // and return the error.
+    index, err := VersionOneIndexFactory(filename+".idx", config.Version, config.Flags)
     if err != nil {
         file.Close()
         return nil, err
     }
 
-    var lock sync.Mutex
-    log := &versionOneLogFile{lock, file, file, &header, index, record_factory, config.Flags, int64(size), CLOSED}
+    // Create the record factory. All records will be created using this
+    // factory.
+    recordFactory := BasicLogRecordFactory(config.MaxRecordSize)
 
-    return log, nil
+    // Stat the file to get the size. If unsuccessful, close the file and return
+    // the error.
+    stat, err := file.Stat()
+    if err != nil {
+        file.Close()
+        return nil, err
+    }
+
+    // Create a lock for the log and wrap the file in an atomic writer. The
+    // atomic writer syncs to disk after each write.
+    var lock sync.Mutex
+    atomicWriter := NewAtomicWriter(file)
+
+    // Finally, create the log file and return.
+    return &versionOneLogFile{lock, file, atomicWriter, &header, index,
+        recordFactory, config.Flags, stat.Size(), CLOSED}, nil
 }
 
 // ### **Creates a new log file**
 // A new log file is created with a file header consisting of a `LOG` signature
 // followed by an 8-bit version. The file header is then synced to disk and
 // a new log is created.
+
 // ###### Implentation
 func createNew(file *os.File, filename string, config Config) (WriteAheadLog, error) {
 
     // Create a buffer for the 4-byte file header.
-    // The first 3 bytes are the signature `LOG` followed by an 8-bit version.
-    buf := make([]byte, 4)
+    // The first 3 bytes contain the signature, `LOG`, followed by an 8-bit
+    // version.
+    buf := make([]byte, 8)
 
     // Write the `LOG` file signature to the first 3 bytes of the file.
-    xbinary.LittleEndian.PutString(buf, 0, "LOG")
+    xbinary.LittleEndian.PutString(buf, 0, string(LogFileSignature))
 
     // Set file version to the given `config.Version`.
     buf[3] = byte(config.Version)
+
+    // Write the config flags into the buffer
+    xbinary.LittleEndian.PutUint32(buf, 4, config.Flags)
 
     // Write the file header buffer to the file.
     _, err := file.Write(buf)
@@ -426,14 +280,13 @@ func createNew(file *os.File, filename string, config Config) (WriteAheadLog, er
 // `ErrInvalidFileVersion` is returned along with a `nil` log.
 //
 // If the file header cannot be read, an error is also returned.
+
 // ###### Implementation
 func openExisting(file *os.File, filename string, config Config) (WriteAheadLog, error) {
-
-    // Create a buffer for the 4-byte file header.
-    // The first 3 bytes are the signature `LOG` followed by an 8-bit version.
-    buf := make([]byte, 4)
-
-    // Read the file header into the buffer
+    // Create a buffer for the 8-byte file header.
+    // The first 3 bytes are the signature `LOG` followed by an 8-bit version
+    // and the boolean flags. Then read the file header into the buffer.
+    buf := make([]byte, 8)
     _, err := file.ReadAt(buf, 0)
 
     // If there was an error reading the file header, close the file and return
@@ -444,13 +297,22 @@ func openExisting(file *os.File, filename string, config Config) (WriteAheadLog,
     }
 
     // If the header was read sucessfully, verify the file signature matches
-    // the expected signature. If the first 3 bytes do not match `LOG`, return
-    // a `nil` log and a `ErrInvalidFileSignature`.
+    // the expected "LOG" signature. If the first 3 bytes do not match `LOG`,
+    // return a `nil` log and a `ErrInvalidFileSignature`.
     if !bytes.Equal(buf[0:3], LogFileSignature) {
         return nil, ErrInvalidFileSignature
     }
 
-    // Returns the proper log parser based on the given version
+    // Read the boolean flags from the file header and overwrite the config
+    // flags with the ones from the file.
+    flags, err := xbinary.LittleEndian.Uint32(buf, 4)
+    if err != nil {
+        return nil, err
+    }
+    config.Flags = flags
+
+    // The config version is updated to reflect the actual version of the file.
+    // Then return the proper log parser based on the file version.
     config.Version = uint8(buf[3])
     return selectVersion(file, filename, config)
 }
@@ -458,12 +320,12 @@ func openExisting(file *os.File, filename string, config Config) (WriteAheadLog,
 // ### **Select log version**
 // `selectVersion` is only here to make the code a bit `DRY`er. It simple
 // returns the proper log file based on the given version.
-// ###### Implementation
-func selectVersion(file *os.File, filename string, config Config) (WriteAheadLog, error) {
 
-    // Open the log file based on the current version of the file.
-    // If the version is unrecognized, a `nil` log is returned as well as an
-    // `ErrInvalidFileVersion` error.
+// ###### Implementation
+// Open the log file based on the current version of the file.
+// If the version is unrecognized, a `nil` log is returned as well as an
+// `ErrInvalidFileVersion` error.
+func selectVersion(file *os.File, filename string, config Config) (WriteAheadLog, error) {
     switch config.Version {
     case VersionOne:
         return createVersionOne(file, filename, config)
