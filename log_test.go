@@ -137,3 +137,24 @@ func TestBasicLogRecordUnmarshalFail(t *testing.T) {
 	assert.Nil(t, r2)
 	assert.Equal(t, ErrInvalidRecordSize, err)
 }
+
+func TestOpenLog(t *testing.T) {
+
+	log, err := Create("./tests/open.log", DefaultConfig)
+	assert.Nil(t, err)
+	assert.NotNil(t, log)
+
+	state := log.State()
+	assert.Equal(t, state, CLOSED)
+
+	err = log.Open()
+	assert.Nil(t, err)
+
+	state = log.State()
+	assert.Equal(t, state, OPEN)
+
+	err = log.Open()
+	assert.NotNil(t, err)
+	assert.Equal(t, err, ErrLogAlreadyOpen)
+
+}
