@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestVersionOneLogRecord(t *testing.T) {
+func TestBasicLogRecord(t *testing.T) {
 
-	var index uint64 = 0
+	var index uint64
 	buf := make([]byte, 64)
 	var size uint32 = 64
 	nanos := time.Now().UnixNano()
 	flags := DefaultRecordFlags
 
 	// create record
-	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	record := BasicLogRecord{size, nanos, index, flags, buf}
 
 	assert.Equal(t, index, record.Index(), "index should be 0")
 	assert.Equal(t, size, record.Size(), "size should be 64")
@@ -26,17 +26,17 @@ func TestVersionOneLogRecord(t *testing.T) {
 	assert.Equal(t, buf, record.Data())
 }
 
-func TestVersionOneLogRecordFactory(t *testing.T) {
+func TestBasicLogRecordFactory(t *testing.T) {
 
-	var index uint64 = 0
+	var index uint64
 	buf := make([]byte, 64)
 	var size uint32 = 64
 	nanos := time.Now().UnixNano()
 	flags := DefaultRecordFlags
 
 	// create record
-	factory := VersionOneLogRecordFactory{DefaultMaxRecordSize}
-	record, err := factory.NewRecord(nanos, index, flags, buf)
+	factory := BasicLogRecordFactory(DefaultMaxRecordSize)
+	record, err := factory(nanos, index, flags, buf)
 	assert.Nil(t, err)
 
 	assert.Equal(t, index, record.Index(), "index should be 0")
@@ -46,30 +46,30 @@ func TestVersionOneLogRecordFactory(t *testing.T) {
 	assert.Equal(t, buf, record.Data())
 }
 
-func TestVersionOneLogRecordFactoryMaxSize(t *testing.T) {
+func TestBasicLogRecordFactoryMaxSize(t *testing.T) {
 
-	var index uint64 = 0
+	var index uint64
 	buf := make([]byte, 64)
 	nanos := time.Now().UnixNano()
 	flags := DefaultRecordFlags
 
 	// create record
-	factory := VersionOneLogRecordFactory{48}
-	record, err := factory.NewRecord(nanos, index, flags, buf)
+	factory := BasicLogRecordFactory(48)
+	record, err := factory(nanos, index, flags, buf)
 	assert.NotNil(t, err)
 	assert.Nil(t, record)
 }
 
-func TestVersionOneLogRecordMarshal(t *testing.T) {
+func TestBasicLogRecordMarshal(t *testing.T) {
 
-	var index uint64 = 0
+	var index uint64
 	buf := make([]byte, 64)
 	var size uint32 = 64
 	nanos := time.Now().UnixNano()
 	flags := DefaultRecordFlags
 
 	// create record
-	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	record := BasicLogRecord{size, nanos, index, flags, buf}
 	bin, err := record.MarshalBinary()
 	assert.Nil(t, err)
 
@@ -94,28 +94,27 @@ func TestVersionOneLogRecordMarshal(t *testing.T) {
 	assert.Equal(t, record.Flags(), f)
 }
 
-func TestVersionOneLogRecordUnmarshal(t *testing.T) {
+func TestBasicLogRecordUnmarshal(t *testing.T) {
 
-	var index uint64 = 0
+	var index uint64
 	buf := make([]byte, 64)
 	var size uint32 = 64
 	nanos := time.Now().UnixNano()
 	flags := DefaultRecordFlags
 
 	// create record
-	record := VersionOneLogRecord{size, nanos, index, flags, buf}
+	record := BasicLogRecord{size, nanos, index, flags, buf}
 	bin, err := record.MarshalBinary()
 	assert.Nil(t, err)
 
-	r2 := VersionOneLogRecord{}
-	err = r2.UnmarshalBinary(bin)
+	r2, err := UnmarshalBasicLogRecord(bin)
 	assert.Nil(t, err)
-
-	// test index
-	assert.Equal(t, record.Index(), r2.Index(), "indexes should match")
 
 	// test size
 	assert.Equal(t, record.Size(), r2.Size(), "size should be 64")
+
+	// test index
+	assert.Equal(t, record.Index(), r2.Index(), "indexes should match")
 
 	// test time
 	assert.Equal(t, record.Time(), r2.Time())
@@ -124,18 +123,17 @@ func TestVersionOneLogRecordUnmarshal(t *testing.T) {
 	assert.Equal(t, record.Flags(), r2.Flags())
 }
 
-func TestVersionOneLogRecordUnmarshalFail(t *testing.T) {
+func TestBasicLogRecordUnmarshalFail(t *testing.T) {
+	var buf []byte
 
-	buf := make([]byte, 0)
-
-	r2 := VersionOneLogRecord{}
-	err := r2.UnmarshalBinary(buf)
+	r2, err := UnmarshalBasicLogRecord(buf)
 	assert.NotNil(t, err)
 	assert.Equal(t, ErrInvalidRecordSize, err)
 
 	buf = make([]byte, 64)
 	xbinary.LittleEndian.PutUint32(buf, 0, 63)
-	err = r2.UnmarshalBinary(buf)
+	r2, err = UnmarshalBasicLogRecord(buf)
 	assert.NotNil(t, err)
+	assert.Nil(t, r2)
 	assert.Equal(t, ErrInvalidRecordSize, err)
 }

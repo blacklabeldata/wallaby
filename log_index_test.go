@@ -21,7 +21,7 @@ func TestIndexRecord(t *testing.T) {
 
 	unix := now.UnixNano()
 	index, offset := uint64(0), int64(24)
-	ir := BasicIndexRecord{unix, index, offset}
+	ir := BasicIndexRecord{unix, index, offset, 0}
 
 	// time
 	assert.Equal(t, unix, ir.Time())
@@ -37,7 +37,7 @@ func TestIndexHeader(t *testing.T) {
 
 	var version uint8 = 128
 	var flags uint32 = 0x377
-	ih := BasicIndexHeader{version, flags}
+	ih := BasicFileHeader{version, flags}
 
 	// version
 	assert.Equal(t, version, ih.Version())
@@ -59,8 +59,7 @@ func TestVersionOneCreateIndex(t *testing.T) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
 	assert.NotNil(t, index, "Index file could not be created")
 	assert.Nil(t, err, "CreateIndex produced an error")
@@ -68,18 +67,16 @@ func TestVersionOneCreateIndex(t *testing.T) {
 	// stat file header size
 	info, err := os.Stat(indexfile)
 	assert.Nil(t, err, "os.Stat call resulted in error")
-	if info.Size() != 8 {
-		t.Errorf("Invalid header size")
-	}
+	assert.Equal(t, 8, info.Size(), "Invalid header size")
 
 	// test header
-	header, err := index.Header()
-	assert.Equal(t, 1, header.Version())
+	header := index.Header()
+	assert.Equal(t, 1, int(header.Version()))
 	assert.Equal(t, uint32(DefaultIndexFlags), header.Flags())
 
 	// test Size
-	size, err := index.Size()
-	assert.Equal(t, 0, size)
+	size := index.Size()
+	assert.Equal(t, 0, int(size))
 }
 
 func TestVersionOneCreateIndexExisting(t *testing.T) {
@@ -95,21 +92,17 @@ func TestVersionOneCreateIndexExisting(t *testing.T) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 	index.Close()
 
-	// re-open file
-	index, err = factory.GetOrCreateIndex(DefaultIndexFlags)
-
 	// test header
-	header, err := index.Header()
-	assert.Equal(t, 1, header.Version())
+	header := index.Header()
+	assert.Equal(t, 1, int(header.Version()))
 	assert.Equal(t, uint32(DefaultIndexFlags), header.Flags())
 
 	// test Size
-	size, err := index.Size()
-	assert.Equal(t, 0, size)
+	size := index.Size()
+	assert.Equal(t, 0, int(size))
 }
 
 func TestVersionOneAppend(t *testing.T) {
@@ -125,8 +118,7 @@ func TestVersionOneAppend(t *testing.T) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
 	// test index file
 	assert.NotNil(t, index, "Index file could not be created")
@@ -134,23 +126,23 @@ func TestVersionOneAppend(t *testing.T) {
 
 	unix := time.Now().UnixNano()
 	i, offset := uint64(0), int64(24)
-	record := BasicIndexRecord{unix, i, offset}
+	record := BasicIndexRecord{unix, i, offset, 0}
 	n, err := index.Append(record)
 	assert.Equal(t, VersionOneIndexRecordSize, n, "Invalid index record size")
 
-	size, _ := index.Size()
-	assert.Equal(t, 1, size)
+	size := index.Size()
+	assert.Equal(t, 1, int(size))
 
 	for i := 2; i < 10; i++ {
 		unix = time.Now().UnixNano()
 		offset = int64(24)
-		record := BasicIndexRecord{unix, uint64(i + 1), offset}
+		record := BasicIndexRecord{unix, uint64(i + 1), offset, 0}
 		n, err := index.Append(record)
-		assert.Equal(t, VersionOneIndexRecordSize, n, "Invalid index record size")
+		assert.Equal(t, VersionOneIndexRecordSize, int(n), "Invalid index record size")
 		assert.Nil(t, err)
 
-		size, _ := index.Size()
-		assert.Equal(t, i, size)
+		size := index.Size()
+		assert.Equal(t, i, int(size))
 	}
 }
 
@@ -167,8 +159,7 @@ func TestVersionOneSlice(t *testing.T) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
 	// offset out of range
 	slice, err := index.Slice(1, 1)
@@ -189,7 +180,7 @@ func TestVersionOneSlice(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		unix := time.Now().UnixNano()
 		offset := int64(24*i + 8)
-		record := BasicIndexRecord{unix, uint64(i), offset}
+		record := BasicIndexRecord{unix, uint64(i), offset, 0}
 		index.Append(record)
 	}
 	index.Flush()
@@ -229,8 +220,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
 	// var unix, offset int64
 	var record BasicIndexRecord
@@ -266,14 +256,13 @@ func BenchmarkIndexSlice(b *testing.B) {
 	}
 
 	// create index factory
-	factory := VersionOneIndexFactory{indexfile}
-	index, err := factory.GetOrCreateIndex(DefaultIndexFlags)
+	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
 	// append records
 	for i := 0; i < b.N; i++ {
 		unix := time.Now().UnixNano()
 		offset := int64(24*i + 8)
-		record := BasicIndexRecord{unix, uint64(i), offset}
+		record := BasicIndexRecord{unix, uint64(i), offset, 0}
 		index.Append(record)
 	}
 	index.Flush()

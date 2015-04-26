@@ -109,15 +109,6 @@ type LogCursor interface {
 	Close() error
 }
 
-// ### **Log Header**
-
-// LogHeader is at the front of the log file and describes which version the
-// file was written with as well as any boolean flags associated with the file
-type LogHeader interface {
-	Version() uint8
-	Flags() uint32
-}
-
 // ### **Log Record**
 
 // LogRecord describes a single item in the log file. It consists of a time, an
@@ -127,11 +118,6 @@ type LogRecord interface {
 
 	// Converts a LogRecord as a byte array
 	encoding.BinaryMarshaler
-
-	// ###### *BinaryUnmarshaler*
-
-	// Converts a byte array into a LogRecord
-	encoding.BinaryUnmarshaler
 
 	// ###### *Size*
 
@@ -248,15 +234,16 @@ func (r BasicLogRecord) MarshalBinary() ([]byte, error) {
 	return buffer, nil
 }
 
-func (r BasicLogRecord) UnmarshalBinary(buffer []byte) error {
+func UnmarshalBasicLogRecord(buffer []byte) (*BasicLogRecord, error) {
+	var r BasicLogRecord
 	if len(buffer) < VersionOneLogRecordHeaderSize {
-		return ErrInvalidRecordSize
+		return nil, ErrInvalidRecordSize
 	}
 
 	// read and validate uint32 size
 	size, _ := xbinary.LittleEndian.Uint32(buffer, 0)
 	if size != uint32(len(buffer)-24) {
-		return ErrInvalidRecordSize
+		return nil, ErrInvalidRecordSize
 	}
 	r.size = size
 
@@ -273,9 +260,10 @@ func (r BasicLogRecord) UnmarshalBinary(buffer []byte) error {
 	r.index = index
 
 	// read data
-	r.data = buffer[24:]
+	// r.data = buffer[24:]
+	copy(r.data, buffer[24:])
 
-	return nil
+	return &r, nil
 }
 
 // ## **Version One Log File**

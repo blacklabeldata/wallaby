@@ -86,19 +86,19 @@ const (
     DefaultMaxRecordSize = 0xffff
 
     // - `LogHeaderSize` is the size of the file header.
-    LogHeaderSize = 4
+    LogHeaderSize = 8
 
     // - `VersionOne` is an integer denoting the first version
     VersionOne = 1
 
     // - `VersionOneIndexHeaderSize` is the size of the index file header.
-    VersionOneIndexHeaderSize = 4
+    VersionOneIndexHeaderSize = 8
 
     // - `VersionOneIndexRecordSize` is the size of the index records.
     VersionOneIndexRecordSize = 32
 
     // - `VersionOneLogHeaderSize` is the header size of version 1 log files
-    VersionOneLogHeaderSize = 4
+    VersionOneLogHeaderSize = 8
 
     // - `VersionOneLogRecordHeaderSize` is the size of the log record headers.
     VersionOneLogRecordHeaderSize = 24
@@ -106,10 +106,6 @@ const (
     // - `MaximumIndexSlice` is the maximum number of index records to be read at
     // one time
     MaximumIndexSlice = 32000
-
-    // - `HeaderOffset` is the minimum number of bytes in the file before version
-    // headers begin.
-    HeaderOffset = 4
 )
 
 // ## **Metadata**
@@ -181,7 +177,7 @@ func Open(filename string, config Config) (WriteAheadLog, error) {
 
     // If the file size suggests the header exists, open an existing file.
     // Otherwise create a new file based on the given config.
-    if stat.Size() >= HeaderOffset {
+    if stat.Size() >= LogHeaderSize {
         return openExisting(file, filename, config)
     }
     return createNew(file, filename, config)
