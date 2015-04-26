@@ -140,18 +140,18 @@ var DefaultConfig Config = Config{
     Version:       VersionOne,
 }
 
-// ## **Open a log file**
-// Open returns a `WriteAheadLog` implementation if no errors occur. If the
+// ## **Create a log file**
+// Create returns a `WriteAheadLog` implementation if no errors occur. If the
 // given filename already exists, the log file will try to be opened. If the
 // file format can be verified, the existing log will be returned. If the
 // file does not exist, a new log will be created with the given config.
 //
 // If the file already exists and the file version is different than the given
-// `config.Version`, the file will remain the version in which is was created.
+// `config.Version`, the file will remain the version in which it was created.
 // In other words the file will not be updated to the newer version.
 
 // ###### Implementation
-func Open(filename string, config Config) (WriteAheadLog, error) {
+func Create(filename string, config Config) (WriteAheadLog, error) {
 
     // Determine if the given config is valid. If the given config is `nil`,
     // a `ErrConfigRequired` error will be returned.
