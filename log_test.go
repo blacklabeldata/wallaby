@@ -1,12 +1,21 @@
 package wallaby
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/eliquious/xbinary"
 	"github.com/stretchr/testify/assert"
 )
+
+var DefaultTestConfig Config = Config{
+	FileMode:      0600,
+	MaxRecordSize: DefaultMaxRecordSize,
+	Flags:         DefaultRecordFlags,
+	Version:       VersionOne,
+	Truncate:      true,
+}
 
 func TestBasicLogRecord(t *testing.T) {
 
@@ -140,7 +149,7 @@ func TestBasicLogRecordUnmarshalFail(t *testing.T) {
 
 func TestOpenLog(t *testing.T) {
 
-	log, err := Create("./tests/open.log", DefaultConfig)
+	log, err := Create("./tests/open.log", DefaultTestConfig)
 	assert.Nil(t, err)
 	assert.NotNil(t, log)
 
@@ -156,5 +165,132 @@ func TestOpenLog(t *testing.T) {
 	err = log.Open()
 	assert.NotNil(t, err)
 	assert.Equal(t, err, ErrLogAlreadyOpen)
+}
 
+func TestLogAppend(t *testing.T) {
+
+	// create log file
+	log, err := Create("./tests/append.log", DefaultTestConfig)
+	assert.Nil(t, err)
+	assert.NotNil(t, log)
+
+	// open log
+	err = log.Open()
+	assert.Nil(t, err)
+
+	// get time
+	nanos := time.Now().UnixNano()
+
+	// create buffer
+	buffer := make([]byte, 64)
+
+	// append record
+	record, err := log.Append(buffer)
+	assert.Nil(t, err)
+	assert.NotNil(t, record)
+
+	// record time should be greater than when Append was called
+	assert.True(t, nanos < record.Time())
+
+	// check record size
+	assert.Equal(t, 64, int(record.Size()))
+
+	fmt.Println(log.Metadata())
+}
+
+func BenchmarkAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Append(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkBufferedAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(4 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Append(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkLargeBufferedAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(1024 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Append(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
 }
