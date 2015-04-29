@@ -6,7 +6,6 @@ import (
 	"hash"
 	"io"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/eliquious/xbinary"
@@ -17,11 +16,13 @@ import (
 // State is used to maintain the current status of the log.
 type State uint8
 
-// `CLOSED` represents a closed log file
-const CLOSED State = 0
+const UNOPENED State = 0
 
 // `OPEN` signifies the log is currently open
 const OPEN State = 1
+
+// `CLOSED` represents a closed log file
+const CLOSED State = 2
 
 // <br/>
 // ## **Log Interfaces**
@@ -31,6 +32,7 @@ const OPEN State = 1
 // WriteAheadLog implements an immutable write-ahead log file with indexes and
 // snapshots.
 type WriteAheadLog interface {
+	io.WriteCloser
 
 	// ###### *State*
 
@@ -42,18 +44,6 @@ type WriteAheadLog interface {
 	// `Open` opens the log for appending. Prior to this call the log state
 	// should be CLOSED. Once this is called State() should return OPEN.
 	Open() error
-
-	// ###### *Close*
-
-	// `Close` allows the log to be closed. After this is called, `State`
-	// should return `CLOSED` and future appends should fail.
-	Close() error
-
-	// ###### *Append*
-
-	// `Append` wraps the given bytes array in a Record and returns the record
-	// index or an error
-	Append(data []byte) (LogRecord, error)
 
 	// ###### *Recover*
 
@@ -148,19 +138,43 @@ type LogRecord interface {
 
 // ###### **LogRecordFactory**
 
-// LogRecordFactory generates new `LogRecords` from the arguments.
-type LogRecordFactory func(nanos int64, index uint64, flags uint32, data []byte) (LogRecord, error)
+// func NewRecordWriter(maxSize int, startingIndex uint64, flags uint32, writer io.WriteCloser) io.WriteCloser {
+// 	return v1LogRecordFactory{maxSize, 0, 0, make([]byte, 0, maxSize+24), writer}
+// }
 
-// ###### **BasicLogRecordFactory**
+type v1LogRecordFactory struct {
+	maxSize int
+	index   uint64
+	flags   uint32
+	buffer  []byte
+	parent  io.WriteCloser
+}
 
-// BasicLogRecordFactory creates a v1 log record. Each record is prefixed with a header. If the record data exceeds the maximum record size, an `ErrRecordTooLarge` error is returned.
-func BasicLogRecordFactory(maxSize int) LogRecordFactory {
-	return func(nanos int64, index uint64, flags uint32, data []byte) (LogRecord, error) {
-		if len(data) > maxSize {
-			return nil, ErrRecordTooLarge
-		}
-		return BasicLogRecord{uint32(len(data)), nanos, index, flags, data}, nil
+func (b v1LogRecordFactory) Write(data []byte) (int, error) {
+	if len(data) > b.maxSize {
+		return 0, ErrRecordTooLarge
 	}
+
+	// write uint32 size
+	xbinary.LittleEndian.PutUint32(data, 0, uint32(len(data)))
+
+	// write uint32 flags
+	xbinary.LittleEndian.PutUint32(data, 4, b.flags)
+
+	// write int64 timestamp
+	xbinary.LittleEndian.PutInt64(data, 8, time.Now().UnixNano())
+
+	// write uint64 index
+	xbinary.LittleEndian.PutUint64(data, 16, b.index)
+	b.index++
+
+	copy(b.buffer[24:len(data)+24], data[:])
+
+	return b.parent.Write(b.buffer[:len(data)+24])
+}
+
+func (b v1LogRecordFactory) Close() error {
+	return b.parent.Close()
 }
 
 // ### **BasicLogRecord**
@@ -275,17 +289,18 @@ func UnmarshalBasicLogRecord(buffer []byte) (*BasicLogRecord, error) {
 // type. Wallaby strives to maintain a clean API and hence uses interfaces to
 // abstract specific implementations.
 type versionOneLogFile struct {
-	lock        sync.Mutex
-	fd          *os.File
-	writeCloser io.WriteCloser
-	header      FileHeader
-	index       LogIndex
-	factory     LogRecordFactory
-	flags       uint32
-	size        int64
-	state       State
-	hash        hash.Hash64
-	nanos       int64
+	// lock        sync.Mutex
+	fd            *os.File
+	writeCloser   io.WriteCloser
+	config        Config
+	header        FileHeader
+	index         *LogIndex
+	size          int64
+	state         State
+	hash          hash.Hash64
+	indexBuffer   []byte
+	ttl           int64
+	lastWriteTime int64
 }
 
 // ###### *Open*
@@ -293,9 +308,10 @@ type versionOneLogFile struct {
 // `Open` simply switches the state to `OPEN`. If the log is already open, the
 // error `ErrLogAlreadyOpen` is returned.
 func (v *versionOneLogFile) Open() error {
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.Use(func(writer io.WriteCloser) io.WriteCloser {
+		return v1LogRecordFactory{v.config.MaxRecordSize, 0, 0, make([]byte, 0, v.config.MaxRecordSize+VersionOneLogRecordHeaderSize), writer}
 
+	})
 	if v.state == OPEN {
 		return ErrLogAlreadyOpen
 	}
@@ -304,6 +320,133 @@ func (v *versionOneLogFile) Open() error {
 
 	io.Copy(v.hash, v.fd)
 	return nil
+}
+
+// ###### *State*
+
+// `State` allows the log state to be queried by returning the current state of
+// the log.
+func (v *versionOneLogFile) State() State {
+	return v.state
+}
+
+// ###### *Use*
+
+// `Use` allows middleware to modify the log's behavior. `DecorativeWriteClosers`
+// are the vehicles which make this possible. They wrap the internal writer
+// with additional capabilities such as using different buffering strategies.
+func (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
+
+	// Only apply the middleware is the log is `CLOSED`. The log remains
+	// in this state until `Open` is called.
+	if v.state == UNOPENED {
+
+		// Iterate over all the `DecorativeWriteClosers` replacing the internal
+		// writer with the new one.
+		for _, writer := range writers {
+			v.writeCloser = writer(v.writeCloser)
+		}
+	}
+}
+
+// ###### *Append*
+
+func (v *versionOneLogFile) Write(data []byte) (n int, err error) {
+
+	// If the log is not `OPEN`, return error
+	if v.state != OPEN {
+		return 0, ErrLogClosed
+	}
+
+	// Update log checksum
+	v.hash.Write(data)
+
+	// Write data into file
+	n, err = v.writeCloser.Write(data)
+	if err != nil {
+		return
+	}
+	v.size += int64(n)
+
+	// Copy `timestamp` and `index` from log record into index buffer
+	copy(v.indexBuffer[:16], data[8:])
+
+	// Set lastWriteTime
+	lastWriteTime, err := xbinary.LittleEndian.Int64(data, 0)
+	if err != nil {
+		return
+	}
+	v.lastWriteTime = lastWriteTime
+
+	// Write file offset data into index buffer
+	_, err = xbinary.LittleEndian.PutInt64(v.indexBuffer, 16, v.size)
+	if err != nil {
+		return
+	}
+
+	// Write ttl into index buffer
+	_, err = xbinary.LittleEndian.PutInt64(v.indexBuffer, 24, v.ttl)
+	if err != nil {
+		return
+	}
+
+	// v.nanos = time.Now().UnixNano()
+	//
+	// v.size += int64(len(buffer))
+	// v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
+
+	// v.size++
+
+	// return newly created record
+	return
+}
+
+// ###### *Cursor*
+
+func (v *versionOneLogFile) Cursor() LogCursor {
+	return nil
+}
+
+// ###### *Snapshot*
+
+// Snapshot returns a Snapshot instance representing the current state of the log.
+func (v *versionOneLogFile) Snapshot() (Snapshot, error) {
+	return BasicSnapshot{v.lastWriteTime, v.size, v.hash.Sum64()}, nil
+}
+
+// ###### *Metadata*
+
+// Metadata returns information about the log file.
+func (v *versionOneLogFile) Metadata() (Metadata, error) {
+
+	meta := Metadata{
+		Size:             v.size,
+		LastModifiedTime: v.lastWriteTime,
+		FileName:         v.fd.Name(),
+		IndexFileName:    v.fd.Name() + ".idx",
+	}
+	return meta, nil
+}
+
+// ###### *Recover*
+func (v *versionOneLogFile) Recover() error {
+	return nil
+}
+
+// ### Close
+
+// `Close` changes the log state to `CLOSED`. The `io.WriterCloser` as well as
+// the underlying file should not recieve any writes after this call has
+// completed. `Append` will return an `ErrLogClosed` after this method is
+// called.
+// ##### Implementation
+func (v *versionOneLogFile) Close() error {
+	v.state = CLOSED
+
+	// Finally, the record `io.WriteCloser` is closed. The `DecorativeWriteCloser`
+	// is expected to flush all the remaining data. If there is an error during
+	// close, the error bubbles up.
+	return v.writeCloser.Close()
 }
 
 // ###### *Pipe*
@@ -340,133 +483,4 @@ func (v *versionOneLogFile) Pipe(offset, limit uint64, writer io.Writer) error {
 
 	// Success. Return a `nil` error.
 	return nil
-}
-
-// ###### *State*
-
-// `State` allows the log state to be queried by returning the current state of
-// the log.
-func (v *versionOneLogFile) State() State {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-	return v.state
-}
-
-// ###### *Use*
-
-// `Use` allows middleware to modify the log's behavior. `DecorativeWriteClosers`
-// are the vehicles which make this possible. They wrap the internal writer
-// with additional capabilities such as using different buffering strategies.
-func (v *versionOneLogFile) Use(writers ...DecorativeWriteCloser) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	// Only apply the middleware is the log is `CLOSED`. The log remains
-	// in this state until `Open` is called.
-	if v.state == CLOSED {
-
-		// Iterate over all the `DecorativeWriteClosers` replacing the internal
-		// writer with the new one.
-		for _, writer := range writers {
-			v.writeCloser = writer(v.writeCloser)
-		}
-	}
-}
-
-// ###### *Append*
-
-func (v *versionOneLogFile) Append(data []byte) (LogRecord, error) {
-
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	if v.state != OPEN {
-		return nil, ErrLogClosed
-	}
-
-	index := v.index.Size()
-
-	// create log record
-	record, err := v.factory(time.Now().UnixNano(), index, v.flags, data)
-	if err != nil {
-		return nil, ErrWriteLogRecord
-	}
-
-	// binary record
-	buffer, err := record.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	v.hash.Write(buffer)
-
-	// _, err = v.fd.Write(buffer)
-	v.writeCloser.Write(buffer)
-	if err != nil {
-		return nil, err
-	}
-	v.nanos = time.Now().UnixNano()
-	v.size += int64(len(buffer))
-	v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
-
-	// return newly created record
-	return record, nil
-}
-
-// ###### *Cursor*
-
-func (v *versionOneLogFile) Cursor() LogCursor {
-	return nil
-}
-
-// ###### *Snapshot*
-
-// Snapshot returns a Snapshot instance representing the current state of the log.
-func (v *versionOneLogFile) Snapshot() (Snapshot, error) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-	return BasicSnapshot{v.nanos, v.size, v.hash.Sum64()}, nil
-}
-
-// ###### *Metadata*
-
-// Metadata returns information about the log file.
-func (v *versionOneLogFile) Metadata() (Metadata, error) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	meta := Metadata{
-		Size:             v.size,
-		LastModifiedTime: v.nanos,
-		FileName:         v.fd.Name(),
-		IndexFileName:    v.fd.Name() + ".idx",
-	}
-	return meta, nil
-}
-
-// ###### *Recover*
-func (v *versionOneLogFile) Recover() error {
-	return nil
-}
-
-// ### Close
-
-// `Close` changes the log state to `CLOSED`. The `io.WriterCloser` as well as
-// the underlying file should not recieve any writes after this call has
-// completed. `Append` will return an `ErrLogClosed` after this method is
-// called.
-// ##### Implementation
-func (v *versionOneLogFile) Close() error {
-
-	// The log is locked before closing the file. The log is then
-	// unlocked on return. After the log has been locked the state is set to
-	// `CLOSED`.
-	v.lock.Lock()
-	defer v.lock.Unlock()
-
-	v.state = CLOSED
-
-	// Finally, the record `io.WriteCloser` is closed. The `DecorativeWriteCloser`
-	// is expected to flush all the remaining data. If there is an error during
-	// close, the error bubbles up.
-	return v.writeCloser.Close()
 }

@@ -8,8 +8,6 @@ import (
     "bytes"
     "errors"
     "os"
-    "sync"
-    "time"
 
     xxhash "github.com/OneOfOne/xxhash/native"
     "github.com/eliquious/xbinary"
@@ -127,6 +125,7 @@ type Metadata struct {
 }
 
 // ## **Config**
+
 // Config stores several log settings. This is used to describe how the log
 // should be opened.
 type Config struct {
@@ -135,6 +134,8 @@ type Config struct {
     Flags         uint32
     Version       uint8
     Truncate      bool
+    TimeToLive    int64
+    Strategy      AtomicStrategy
 }
 
 // > `DefaultConfig` can be used for sensible default log configuration.
@@ -144,6 +145,8 @@ var DefaultConfig Config = Config{
     Flags:         DefaultRecordFlags,
     Version:       VersionOne,
     Truncate:      false,
+    TimeToLive:    0,
+    Strategy:      SyncOnWrite,
 }
 
 // ## **Create a log file**
@@ -215,17 +218,11 @@ func createVersionOne(file *os.File, filename string, config Config) (WriteAhead
     // Create the file header structure from the log flags and version.
     header := BasicFileHeader{flags: config.Flags, version: config.Version}
 
-    // Create the index file. If the file cannot be created, close the file
-    // and return the error.
     index, err := VersionOneIndexFactory(filename+".idx", config.Version, config.Flags)
     if err != nil {
         file.Close()
         return nil, err
     }
-
-    // Create the record factory. All records will be created using this
-    // factory.
-    recordFactory := BasicLogRecordFactory(config.MaxRecordSize)
 
     // Stat the file to get the size. If unsuccessful, close the file and return
     // the error.
@@ -235,14 +232,9 @@ func createVersionOne(file *os.File, filename string, config Config) (WriteAhead
         return nil, err
     }
 
-    // Create a lock for the log and wrap the file in an atomic writer. The
-    // atomic writer syncs to disk after each write.
-    var lock sync.Mutex
-    atomicWriter := NewAtomicWriter(file)
-
     // Finally, create the log file and return.
-    return &versionOneLogFile{lock, file, atomicWriter, &header, index,
-        recordFactory, config.Flags, stat.Size(), CLOSED, xxhash.New64(), time.Now().UnixNano()}, nil
+    return &versionOneLogFile{file, config.Strategy(file), config, &header, &index,
+        stat.Size(), CLOSED, xxhash.New64(), make([]byte, VersionOneIndexRecordSize), config.TimeToLive, int64(stat.ModTime().Nanosecond())}, nil
 }
 
 // ### **Creates a new log file**

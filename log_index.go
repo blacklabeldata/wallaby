@@ -2,9 +2,8 @@ package wallaby
 
 import (
 	"bufio"
+	"io"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/eliquious/xbinary"
@@ -18,12 +17,12 @@ type IndexFactory func(filename string, version uint8, flags uint32) (LogIndex, 
 
 // LogIndex maintains a list of all the records in the log file. IndexRecords
 type LogIndex interface {
+	io.WriteCloser
+
 	Size() uint64
 	Header() FileHeader
-	Append(record IndexRecord) (n int, err error)
 	Slice(offset int64, limit int64) (IndexSlice, error)
 	Flush() error
-	Close() error
 }
 
 // FileHeader describes which version the file was written with. Flags
@@ -235,17 +234,15 @@ func VersionOneIndexFactory(filename string, version uint8, flags uint32) (LogIn
 
 	}
 
-	var lock sync.Mutex
 	writer := bufio.NewWriterSize(file, 64*1024)
 	idx := VersionOneIndexFile{
 		fd:     file,
 		writer: writer,
 		header: header,
-		mutex:  lock,
 		extbuf: xbinary.LittleEndian,
-		size:   &size,
+		size:   size,
 		buffer: make([]byte, VersionOneIndexRecordSize)}
-	return idx, nil
+	return &idx, nil
 }
 
 // VersionOneIndexFile implements the IndexFile interface and is created by VersionOneIndexFactory.
@@ -253,14 +250,13 @@ type VersionOneIndexFile struct {
 	fd     *os.File
 	writer *bufio.Writer
 	header BasicFileHeader
-	mutex  sync.Mutex
 	extbuf xbinary.ExtendedBuffer
-	size   *uint64
+	size   uint64
 	buffer []byte
 }
 
 // Flush writes any buffered data onto permanant storage.
-func (i VersionOneIndexFile) Flush() error {
+func (i *VersionOneIndexFile) Flush() error {
 	i.writer.Flush()
 
 	// sync changes to disk
@@ -272,7 +268,7 @@ func (i VersionOneIndexFile) Flush() error {
 }
 
 // Close flushed the index with permanant storage and closes the index.
-func (i VersionOneIndexFile) Close() error {
+func (i *VersionOneIndexFile) Close() error {
 	err := i.Flush()
 	if err != nil {
 		return err
@@ -282,36 +278,10 @@ func (i VersionOneIndexFile) Close() error {
 }
 
 // Append adds an index record to the end of the index file. V1 index records have a time, an index and an offset in the data file.
-func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	// create buffer and byte count
-	var written int
-
-	// write time
-	n, _ = i.extbuf.PutInt64(i.buffer, 0, record.Time())
-	written += n
-
-	// write index
-	n, _ = i.extbuf.PutUint64(i.buffer, 8, record.Index())
-	written += n
-
-	// write byte offset in record file
-	n, _ = i.extbuf.PutInt64(i.buffer, 16, record.Offset())
-	written += n
-
-	// write ttl
-	n, _ = i.extbuf.PutInt64(i.buffer, 24, record.TimeToLive())
-	written += n
-
-	// check bytes written
-	if written < VersionOneIndexRecordSize {
-		return written, ErrWriteIndexHeader
-	}
+func (i *VersionOneIndexFile) Write(record []byte) (n int, err error) {
 
 	// write index buffer to file
-	n, err = i.writer.Write(i.buffer)
+	n, err = i.writer.Write(record)
 	if err != nil {
 		return n, err
 	}
@@ -320,18 +290,17 @@ func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
 	i.incrementSize()
 
 	// return num bytes and nil error
-	return written, nil
+	return
 }
 
 // IncrementSize bumps the index size by one.
 func (i *VersionOneIndexFile) incrementSize() {
-	// *i.size++
-	atomic.AddUint64(i.size, 1)
+	i.size++
 }
 
 // Size is the number of elements in the index. Which should coorespond with the number of records in the data file.
-func (i VersionOneIndexFile) Size() uint64 {
-	return atomic.LoadUint64(i.size)
+func (i *VersionOneIndexFile) Size() uint64 {
+	return i.size
 }
 
 // Header returns the file header which describes the index file.
@@ -340,13 +309,10 @@ func (i VersionOneIndexFile) Header() FileHeader {
 }
 
 // Slice returns multiple index records starting at the given offset.
-func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
-
-	// get size
-	var size = atomic.LoadUint64(i.size)
+func (i *VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
 
 	// offset too  or less than 0
-	if offset > int64(size) || offset < 0 {
+	if offset > int64(i.size) || offset < 0 {
 		return nil, ErrSliceOutOfBounds
 
 		// invalid limit
@@ -360,8 +326,8 @@ func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error
 		buf = make([]byte, VersionOneIndexRecordSize*MaximumIndexSlice)
 
 		// request exceeds index size
-	} else if uint64(offset+limit) > size {
-		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(size)))
+	} else if uint64(offset+limit) > i.size {
+		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(i.size)))
 
 		// full request can be satisfied
 	} else {
