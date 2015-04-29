@@ -63,6 +63,10 @@ var (
     // record size for the log.
     ErrRecordTooLarge = errors.New("record is too large")
 
+    // ErrExceedsBufferSize occurs when the BufferedWriter is not large enough
+    // to contain all the data being written to it.
+    ErrExceedsBufferSize = errors.New("buffer too large")
+
     // ErrInvalidRecordSize
     ErrInvalidRecordSize = errors.New("invalid record size")
 
