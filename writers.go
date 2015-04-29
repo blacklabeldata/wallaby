@@ -8,7 +8,6 @@
 package wallaby
 
 import (
-    "errors"
     "io"
     "os"
 )
@@ -51,7 +50,7 @@ type bufferedWriteCloser struct {
 // Write writes the data into the buffer.
 func (b bufferedWriteCloser) Write(data []byte) (n int, err error) {
     if len(data) > b.size {
-        return 0, errors.New("buffer too large")
+        return 0, ErrExceedsBufferSize
     }
 
     if len(data)+b.offset > b.size {
