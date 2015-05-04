@@ -127,7 +127,9 @@ func TestVersionOneAppend(t *testing.T) {
 	unix := time.Now().UnixNano()
 	i, offset := uint64(0), int64(24)
 	record := BasicIndexRecord{unix, i, offset, 0}
-	n, err := index.Append(record)
+	rencoder := NewIndexRecordEncoder()
+
+	n, err := index.Write(rencoder.Encode(record))
 	assert.Equal(t, VersionOneIndexRecordSize, n, "Invalid index record size")
 
 	size := index.Size()
@@ -137,7 +139,7 @@ func TestVersionOneAppend(t *testing.T) {
 		unix = time.Now().UnixNano()
 		offset = int64(24)
 		record := BasicIndexRecord{unix, uint64(i + 1), offset, 0}
-		n, err := index.Append(record)
+		n, err := index.Write(rencoder.Encode(record))
 		assert.Equal(t, VersionOneIndexRecordSize, int(n), "Invalid index record size")
 		assert.Nil(t, err)
 
@@ -177,11 +179,12 @@ func TestVersionOneSlice(t *testing.T) {
 	assert.NotNil(t, err, "Expected ErrSliceOufOfBounds")
 
 	// append records
+	rencoder := NewIndexRecordEncoder()
 	for i := 0; i < 100; i++ {
 		unix := time.Now().UnixNano()
 		offset := int64(24*i + 8)
 		record := BasicIndexRecord{unix, uint64(i), offset, 0}
-		index.Append(record)
+		index.Write(rencoder.Encode(record))
 	}
 	index.Flush()
 
@@ -221,6 +224,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 
 	// create index factory
 	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
+	rencoder := NewIndexRecordEncoder()
 
 	// var unix, offset int64
 	var record BasicIndexRecord
@@ -228,7 +232,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		record.nanos = time.Now().UnixNano()
 		record.index = uint64(i)
-		index.Append(record)
+		index.Write(rencoder.Encode(record))
 	}
 
 	// flush to disk and close file

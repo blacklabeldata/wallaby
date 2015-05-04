@@ -294,7 +294,7 @@ type versionOneLogFile struct {
 	writeCloser   io.WriteCloser
 	config        Config
 	header        FileHeader
-	index         *LogIndex
+	index         LogIndex
 	size          int64
 	state         State
 	hash          hash.Hash64
@@ -312,6 +312,7 @@ func (v *versionOneLogFile) Open() error {
 		return v1LogRecordFactory{v.config.MaxRecordSize, 0, 0, make([]byte, 0, v.config.MaxRecordSize+VersionOneLogRecordHeaderSize), writer}
 
 	})
+
 	if v.state == OPEN {
 		return ErrLogAlreadyOpen
 	}
@@ -390,14 +391,9 @@ func (v *versionOneLogFile) Write(data []byte) (n int, err error) {
 		return
 	}
 
-	// v.nanos = time.Now().UnixNano()
-	//
-	// v.size += int64(len(buffer))
-	// v.index.Append(BasicIndexRecord{record.Time(), record.Index(), int64(v.size), 0})
+	// Write index record into log index
+	v.index.Write(v.indexBuffer)
 
-	// v.size++
-
-	// return newly created record
 	return
 }
 

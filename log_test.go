@@ -1,7 +1,6 @@
 package wallaby
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +14,8 @@ var DefaultTestConfig Config = Config{
 	Flags:         DefaultRecordFlags,
 	Version:       VersionOne,
 	Truncate:      true,
+	TimeToLive:    0,
+	Strategy:      SyncOnWrite,
 }
 
 func TestBasicLogRecord(t *testing.T) {
@@ -33,40 +34,6 @@ func TestBasicLogRecord(t *testing.T) {
 	assert.Equal(t, nanos, record.Time())
 	assert.Equal(t, flags, record.Flags())
 	assert.Equal(t, buf, record.Data())
-}
-
-func TestBasicLogRecordFactory(t *testing.T) {
-
-	var index uint64
-	buf := make([]byte, 64)
-	var size uint32 = 64
-	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags
-
-	// create record
-	factory := BasicLogRecordFactory(DefaultMaxRecordSize)
-	record, err := factory(nanos, index, flags, buf)
-	assert.Nil(t, err)
-
-	assert.Equal(t, index, record.Index(), "index should be 0")
-	assert.Equal(t, size, record.Size(), "size should be 64")
-	assert.Equal(t, nanos, record.Time())
-	assert.Equal(t, flags, record.Flags())
-	assert.Equal(t, buf, record.Data())
-}
-
-func TestBasicLogRecordFactoryMaxSize(t *testing.T) {
-
-	var index uint64
-	buf := make([]byte, 64)
-	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags
-
-	// create record
-	factory := BasicLogRecordFactory(48)
-	record, err := factory(nanos, index, flags, buf)
-	assert.NotNil(t, err)
-	assert.Nil(t, record)
 }
 
 func TestBasicLogRecordMarshal(t *testing.T) {
@@ -154,7 +121,7 @@ func TestOpenLog(t *testing.T) {
 	assert.NotNil(t, log)
 
 	state := log.State()
-	assert.Equal(t, state, CLOSED)
+	assert.Equal(t, state, UNOPENED)
 
 	err = log.Open()
 	assert.Nil(t, err)
@@ -178,24 +145,13 @@ func TestLogAppend(t *testing.T) {
 	err = log.Open()
 	assert.Nil(t, err)
 
-	// get time
-	nanos := time.Now().UnixNano()
-
 	// create buffer
 	buffer := make([]byte, 64)
 
 	// append record
-	record, err := log.Append(buffer)
+	n, err := log.Write(buffer)
 	assert.Nil(t, err)
-	assert.NotNil(t, record)
-
-	// record time should be greater than when Append was called
-	assert.True(t, nanos < record.Time())
-
-	// check record size
-	assert.Equal(t, 64, int(record.Size()))
-
-	fmt.Println(log.Metadata())
+	assert.Equal(t, n, 88)
 }
 
 func BenchmarkAtomicWriter(b *testing.B) {
@@ -221,7 +177,7 @@ func BenchmarkAtomicWriter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		// append record
-		_, err := log.Append(buffer)
+		_, err := log.Write(buffer)
 		if err != nil {
 			b.Fail()
 			return
@@ -254,7 +210,7 @@ func BenchmarkBufferedAtomicWriter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		// append record
-		_, err := log.Append(buffer)
+		_, err := log.Write(buffer)
 		if err != nil {
 			b.Fail()
 			return
@@ -287,7 +243,7 @@ func BenchmarkLargeBufferedAtomicWriter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		// append record
-		_, err := log.Append(buffer)
+		_, err := log.Write(buffer)
 		if err != nil {
 			b.Fail()
 			return

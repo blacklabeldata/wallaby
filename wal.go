@@ -71,6 +71,12 @@ var (
     // ErrInvalidSnapshot occurs when a Snapshot cannot be decoded.
     ErrInvalidSnapshot = errors.New("invalid snapshot")
 
+    // ErrInvalidTTL occurs when the `config.TimeToLive` is less than 0
+    ErrInvalidTTL = errors.New("invalid ttl; must be >= 0")
+
+    // ErrInvalidLogStrategy occurs when the `config.Strategy` is nil
+    ErrInvalidLogStrategy = errors.New("invalid write strategy")
+
     // ## **Log Variables**
 
     // Log signature bytes - `LOG`
@@ -168,6 +174,14 @@ func Create(filename string, config Config) (WriteAheadLog, error) {
         return nil, ErrConfigRequired
     }
 
+    if config.TimeToLive < 0 {
+        return nil, ErrInvalidTTL
+    }
+
+    if config.Strategy == nil {
+        return nil, ErrInvalidLogStrategy
+    }
+
     // Open the file name, creating the file if it does not already exist. The
     // file is opened with the `APPEND` flag, which means all writes are
     // appended to the file. Additional file modes can be given with the config.
@@ -208,34 +222,6 @@ func Create(filename string, config Config) (WriteAheadLog, error) {
 
 // ## **Utility functions**
 // These functions assist in opening both new and existing log files.
-
-// ### **Creates a v1 log file**
-// This function is used when creating a v1 log file.
-
-// ###### *Implementation*
-func createVersionOne(file *os.File, filename string, config Config) (WriteAheadLog, error) {
-
-    // Create the file header structure from the log flags and version.
-    header := BasicFileHeader{flags: config.Flags, version: config.Version}
-
-    index, err := VersionOneIndexFactory(filename+".idx", config.Version, config.Flags)
-    if err != nil {
-        file.Close()
-        return nil, err
-    }
-
-    // Stat the file to get the size. If unsuccessful, close the file and return
-    // the error.
-    stat, err := file.Stat()
-    if err != nil {
-        file.Close()
-        return nil, err
-    }
-
-    // Finally, create the log file and return.
-    return &versionOneLogFile{file, config.Strategy(file), config, &header, &index,
-        stat.Size(), CLOSED, xxhash.New64(), make([]byte, VersionOneIndexRecordSize), config.TimeToLive, int64(stat.ModTime().Nanosecond())}, nil
-}
 
 // ### **Creates a new log file**
 // A new log file is created with a file header consisting of a `LOG` signature
@@ -340,4 +326,32 @@ func selectVersion(file *os.File, filename string, config Config) (WriteAheadLog
     default:
         return nil, ErrInvalidFileVersion
     }
+}
+
+// ### **Creates a v1 log file**
+// This function is used when creating a v1 log file.
+
+// ###### *Implementation*
+func createVersionOne(file *os.File, filename string, config Config) (WriteAheadLog, error) {
+
+    // Create the file header structure from the log flags and version.
+    header := BasicFileHeader{flags: config.Flags, version: config.Version}
+
+    index, err := VersionOneIndexFactory(filename+".idx", config.Version, config.Flags)
+    if err != nil {
+        file.Close()
+        return nil, err
+    }
+
+    // Stat the file to get the size. If unsuccessful, close the file and return
+    // the error.
+    stat, err := file.Stat()
+    if err != nil {
+        file.Close()
+        return nil, err
+    }
+
+    // Finally, create the log file and return.
+    return &versionOneLogFile{file, config.Strategy(file), config, header, index,
+        stat.Size(), UNOPENED, xxhash.New64(), make([]byte, VersionOneIndexRecordSize), config.TimeToLive, int64(stat.ModTime().Nanosecond())}, nil
 }

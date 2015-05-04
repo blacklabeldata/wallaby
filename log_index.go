@@ -55,6 +55,16 @@ type BasicIndexRecord struct {
 	ttl    int64
 }
 
+// IndexRecordEncoder writes an `IndexRecord` into a byte array.
+type IndexRecordEncoder interface {
+	Encode(record IndexRecord) []byte
+}
+
+// IndexRecordDecoder reads an `IndexRecord` from a bute array.
+type IndexRecordDecoder interface {
+	Decode(data []byte) (IndexRecord, error)
+}
+
 // Time returns when the record was written to the data file.
 func (i BasicIndexRecord) Time() int64 {
 	return i.nanos
@@ -99,14 +109,48 @@ func (i BasicFileHeader) Flags() uint32 {
 	return i.flags
 }
 
-// VersionOneIndexRecord implements the bare IndexRecord interface.
-type VersionOneIndexRecord struct {
+// NewIndexRecordEncoder writes an `IndexRecord` into a byte array.
+func NewIndexRecordEncoder() IndexRecordEncoder {
+	return &indexRecordEncoder{make([]byte, 32)}
+}
+
+type indexRecordEncoder struct {
+	buffer []byte
+}
+
+func (i *indexRecordEncoder) Encode(record IndexRecord) []byte {
+	xbinary.LittleEndian.PutInt64(i.buffer, 0, record.Time())
+	xbinary.LittleEndian.PutUint64(i.buffer, 8, record.Index())
+	xbinary.LittleEndian.PutInt64(i.buffer, 16, record.Offset())
+	xbinary.LittleEndian.PutInt64(i.buffer, 24, record.TimeToLive())
+	return i.buffer
+}
+
+// NewIndexRecordDecoder creates an `IndexRecord` decoder which decodes byte
+// arrays and returns the IndexRecord. An `ErrInvalidRecordSize` is returned if
+// the record cannot be read.
+func NewIndexRecordDecoder() IndexRecordDecoder {
+	return &indexRecordDecoder{}
+}
+
+type indexRecordDecoder struct {
+}
+
+func (i *indexRecordDecoder) Decode(record []byte) (IndexRecord, error) {
+	if len(record) != 32 {
+		return nil, ErrInvalidRecordSize
+	}
+	return versionOneIndexRecord{&record, 0}, nil
+}
+
+// versionOneIndexRecord implements the bare IndexRecord interface.
+type versionOneIndexRecord struct {
 	buffer *[]byte
 	offset int
 }
 
 // Time returns when the record was written to the data file.
-func (i VersionOneIndexRecord) Time() int64 {
+func (i versionOneIndexRecord) Time() int64 {
 	nanos, err := xbinary.LittleEndian.Int64(*i.buffer, 0+i.offset)
 	if err != nil {
 		nanos = 0
@@ -116,7 +160,7 @@ func (i VersionOneIndexRecord) Time() int64 {
 }
 
 // Index is a record's numerical id.
-func (i VersionOneIndexRecord) Index() uint64 {
+func (i versionOneIndexRecord) Index() uint64 {
 	index, err := xbinary.LittleEndian.Uint64(*i.buffer, 8+i.offset)
 	if err != nil {
 		index = 0
@@ -126,7 +170,7 @@ func (i VersionOneIndexRecord) Index() uint64 {
 }
 
 // Offset is the distance the data record is from the start of the data file.
-func (i VersionOneIndexRecord) Offset() int64 {
+func (i versionOneIndexRecord) Offset() int64 {
 	offset, err := xbinary.LittleEndian.Int64(*i.buffer, 16+i.offset)
 	if err != nil {
 		offset = 0
@@ -137,7 +181,7 @@ func (i VersionOneIndexRecord) Offset() int64 {
 
 // TimeToLive allows for records to expire after a period of time. TTL is in
 // seconds.
-func (i VersionOneIndexRecord) TimeToLive() int64 {
+func (i versionOneIndexRecord) TimeToLive() int64 {
 	ttl, err := xbinary.LittleEndian.Int64(*i.buffer, 24+i.offset)
 	if err != nil {
 		ttl = 0
@@ -149,7 +193,7 @@ func (i VersionOneIndexRecord) TimeToLive() int64 {
 // IsExpired is a helper function for the index record which returns `true` if
 // the current time is beyond the expiration time. The expiration time is
 // calculated as written time + TTL.
-func (i VersionOneIndexRecord) IsExpired() bool {
+func (i versionOneIndexRecord) IsExpired() bool {
 	return time.Now().UnixNano() > i.Time()+i.TimeToLive()
 }
 
@@ -360,7 +404,7 @@ func (s VersionOneIndexSlice) Get(index int) (IndexRecord, error) {
 		return nil, ErrSliceOutOfBounds
 	}
 
-	return VersionOneIndexRecord{&s.buffer, index * VersionOneIndexRecordSize}, nil
+	return versionOneIndexRecord{&s.buffer, index * VersionOneIndexRecordSize}, nil
 }
 
 func (s VersionOneIndexSlice) MarshalBinary() (data []byte, err error) {
