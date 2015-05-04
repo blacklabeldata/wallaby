@@ -8,6 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var DefaultTestConfig Config = Config{
+	FileMode:      0600,
+	MaxRecordSize: DefaultMaxRecordSize,
+	Flags:         DefaultRecordFlags,
+	Version:       VersionOne,
+	Truncate:      true,
+	TimeToLive:    0,
+	Strategy:      SyncOnWrite,
+}
+
 func TestBasicLogRecord(t *testing.T) {
 
 	var index uint64
@@ -24,40 +34,6 @@ func TestBasicLogRecord(t *testing.T) {
 	assert.Equal(t, nanos, record.Time())
 	assert.Equal(t, flags, record.Flags())
 	assert.Equal(t, buf, record.Data())
-}
-
-func TestBasicLogRecordFactory(t *testing.T) {
-
-	var index uint64
-	buf := make([]byte, 64)
-	var size uint32 = 64
-	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags
-
-	// create record
-	factory := BasicLogRecordFactory(DefaultMaxRecordSize)
-	record, err := factory(nanos, index, flags, buf)
-	assert.Nil(t, err)
-
-	assert.Equal(t, index, record.Index(), "index should be 0")
-	assert.Equal(t, size, record.Size(), "size should be 64")
-	assert.Equal(t, nanos, record.Time())
-	assert.Equal(t, flags, record.Flags())
-	assert.Equal(t, buf, record.Data())
-}
-
-func TestBasicLogRecordFactoryMaxSize(t *testing.T) {
-
-	var index uint64
-	buf := make([]byte, 64)
-	nanos := time.Now().UnixNano()
-	flags := DefaultRecordFlags
-
-	// create record
-	factory := BasicLogRecordFactory(48)
-	record, err := factory(nanos, index, flags, buf)
-	assert.NotNil(t, err)
-	assert.Nil(t, record)
 }
 
 func TestBasicLogRecordMarshal(t *testing.T) {
@@ -140,12 +116,12 @@ func TestBasicLogRecordUnmarshalFail(t *testing.T) {
 
 func TestOpenLog(t *testing.T) {
 
-	log, err := Create("./tests/open.log", DefaultConfig)
+	log, err := Create("./tests/open.log", DefaultTestConfig)
 	assert.Nil(t, err)
 	assert.NotNil(t, log)
 
 	state := log.State()
-	assert.Equal(t, state, CLOSED)
+	assert.Equal(t, state, UNOPENED)
 
 	err = log.Open()
 	assert.Nil(t, err)
@@ -156,5 +132,121 @@ func TestOpenLog(t *testing.T) {
 	err = log.Open()
 	assert.NotNil(t, err)
 	assert.Equal(t, err, ErrLogAlreadyOpen)
+}
 
+func TestLogAppend(t *testing.T) {
+
+	// create log file
+	log, err := Create("./tests/append.log", DefaultTestConfig)
+	assert.Nil(t, err)
+	assert.NotNil(t, log)
+
+	// open log
+	err = log.Open()
+	assert.Nil(t, err)
+
+	// create buffer
+	buffer := make([]byte, 64)
+
+	// append record
+	n, err := log.Write(buffer)
+	assert.Nil(t, err)
+	assert.Equal(t, n, 88)
+}
+
+func BenchmarkAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkBufferedAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(4 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkLargeBufferedAtomicWriter(b *testing.B) {
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", DefaultTestConfig)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(1024 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
 }

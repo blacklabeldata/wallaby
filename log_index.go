@@ -2,9 +2,8 @@ package wallaby
 
 import (
 	"bufio"
+	"io"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/eliquious/xbinary"
@@ -18,12 +17,12 @@ type IndexFactory func(filename string, version uint8, flags uint32) (LogIndex, 
 
 // LogIndex maintains a list of all the records in the log file. IndexRecords
 type LogIndex interface {
+	io.WriteCloser
+
 	Size() uint64
 	Header() FileHeader
-	Append(record IndexRecord) (n int, err error)
 	Slice(offset int64, limit int64) (IndexSlice, error)
 	Flush() error
-	Close() error
 }
 
 // FileHeader describes which version the file was written with. Flags
@@ -54,6 +53,16 @@ type BasicIndexRecord struct {
 	index  uint64
 	offset int64
 	ttl    int64
+}
+
+// IndexRecordEncoder writes an `IndexRecord` into a byte array.
+type IndexRecordEncoder interface {
+	Encode(record IndexRecord) []byte
+}
+
+// IndexRecordDecoder reads an `IndexRecord` from a bute array.
+type IndexRecordDecoder interface {
+	Decode(data []byte) (IndexRecord, error)
 }
 
 // Time returns when the record was written to the data file.
@@ -100,14 +109,48 @@ func (i BasicFileHeader) Flags() uint32 {
 	return i.flags
 }
 
-// VersionOneIndexRecord implements the bare IndexRecord interface.
-type VersionOneIndexRecord struct {
+// NewIndexRecordEncoder writes an `IndexRecord` into a byte array.
+func NewIndexRecordEncoder() IndexRecordEncoder {
+	return &indexRecordEncoder{make([]byte, 32)}
+}
+
+type indexRecordEncoder struct {
+	buffer []byte
+}
+
+func (i *indexRecordEncoder) Encode(record IndexRecord) []byte {
+	xbinary.LittleEndian.PutInt64(i.buffer, 0, record.Time())
+	xbinary.LittleEndian.PutUint64(i.buffer, 8, record.Index())
+	xbinary.LittleEndian.PutInt64(i.buffer, 16, record.Offset())
+	xbinary.LittleEndian.PutInt64(i.buffer, 24, record.TimeToLive())
+	return i.buffer
+}
+
+// NewIndexRecordDecoder creates an `IndexRecord` decoder which decodes byte
+// arrays and returns the IndexRecord. An `ErrInvalidRecordSize` is returned if
+// the record cannot be read.
+func NewIndexRecordDecoder() IndexRecordDecoder {
+	return &indexRecordDecoder{}
+}
+
+type indexRecordDecoder struct {
+}
+
+func (i *indexRecordDecoder) Decode(record []byte) (IndexRecord, error) {
+	if len(record) != 32 {
+		return nil, ErrInvalidRecordSize
+	}
+	return versionOneIndexRecord{&record, 0}, nil
+}
+
+// versionOneIndexRecord implements the bare IndexRecord interface.
+type versionOneIndexRecord struct {
 	buffer *[]byte
 	offset int
 }
 
 // Time returns when the record was written to the data file.
-func (i VersionOneIndexRecord) Time() int64 {
+func (i versionOneIndexRecord) Time() int64 {
 	nanos, err := xbinary.LittleEndian.Int64(*i.buffer, 0+i.offset)
 	if err != nil {
 		nanos = 0
@@ -117,7 +160,7 @@ func (i VersionOneIndexRecord) Time() int64 {
 }
 
 // Index is a record's numerical id.
-func (i VersionOneIndexRecord) Index() uint64 {
+func (i versionOneIndexRecord) Index() uint64 {
 	index, err := xbinary.LittleEndian.Uint64(*i.buffer, 8+i.offset)
 	if err != nil {
 		index = 0
@@ -127,7 +170,7 @@ func (i VersionOneIndexRecord) Index() uint64 {
 }
 
 // Offset is the distance the data record is from the start of the data file.
-func (i VersionOneIndexRecord) Offset() int64 {
+func (i versionOneIndexRecord) Offset() int64 {
 	offset, err := xbinary.LittleEndian.Int64(*i.buffer, 16+i.offset)
 	if err != nil {
 		offset = 0
@@ -138,7 +181,7 @@ func (i VersionOneIndexRecord) Offset() int64 {
 
 // TimeToLive allows for records to expire after a period of time. TTL is in
 // seconds.
-func (i VersionOneIndexRecord) TimeToLive() int64 {
+func (i versionOneIndexRecord) TimeToLive() int64 {
 	ttl, err := xbinary.LittleEndian.Int64(*i.buffer, 24+i.offset)
 	if err != nil {
 		ttl = 0
@@ -150,7 +193,7 @@ func (i VersionOneIndexRecord) TimeToLive() int64 {
 // IsExpired is a helper function for the index record which returns `true` if
 // the current time is beyond the expiration time. The expiration time is
 // calculated as written time + TTL.
-func (i VersionOneIndexRecord) IsExpired() bool {
+func (i versionOneIndexRecord) IsExpired() bool {
 	return time.Now().UnixNano() > i.Time()+i.TimeToLive()
 }
 
@@ -235,17 +278,15 @@ func VersionOneIndexFactory(filename string, version uint8, flags uint32) (LogIn
 
 	}
 
-	var lock sync.Mutex
 	writer := bufio.NewWriterSize(file, 64*1024)
 	idx := VersionOneIndexFile{
 		fd:     file,
 		writer: writer,
 		header: header,
-		mutex:  lock,
 		extbuf: xbinary.LittleEndian,
-		size:   &size,
+		size:   size,
 		buffer: make([]byte, VersionOneIndexRecordSize)}
-	return idx, nil
+	return &idx, nil
 }
 
 // VersionOneIndexFile implements the IndexFile interface and is created by VersionOneIndexFactory.
@@ -253,14 +294,13 @@ type VersionOneIndexFile struct {
 	fd     *os.File
 	writer *bufio.Writer
 	header BasicFileHeader
-	mutex  sync.Mutex
 	extbuf xbinary.ExtendedBuffer
-	size   *uint64
+	size   uint64
 	buffer []byte
 }
 
 // Flush writes any buffered data onto permanant storage.
-func (i VersionOneIndexFile) Flush() error {
+func (i *VersionOneIndexFile) Flush() error {
 	i.writer.Flush()
 
 	// sync changes to disk
@@ -272,7 +312,7 @@ func (i VersionOneIndexFile) Flush() error {
 }
 
 // Close flushed the index with permanant storage and closes the index.
-func (i VersionOneIndexFile) Close() error {
+func (i *VersionOneIndexFile) Close() error {
 	err := i.Flush()
 	if err != nil {
 		return err
@@ -282,36 +322,10 @@ func (i VersionOneIndexFile) Close() error {
 }
 
 // Append adds an index record to the end of the index file. V1 index records have a time, an index and an offset in the data file.
-func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	// create buffer and byte count
-	var written int
-
-	// write time
-	n, _ = i.extbuf.PutInt64(i.buffer, 0, record.Time())
-	written += n
-
-	// write index
-	n, _ = i.extbuf.PutUint64(i.buffer, 8, record.Index())
-	written += n
-
-	// write byte offset in record file
-	n, _ = i.extbuf.PutInt64(i.buffer, 16, record.Offset())
-	written += n
-
-	// write ttl
-	n, _ = i.extbuf.PutInt64(i.buffer, 24, record.TimeToLive())
-	written += n
-
-	// check bytes written
-	if written < VersionOneIndexRecordSize {
-		return written, ErrWriteIndexHeader
-	}
+func (i *VersionOneIndexFile) Write(record []byte) (n int, err error) {
 
 	// write index buffer to file
-	n, err = i.writer.Write(i.buffer)
+	n, err = i.writer.Write(record)
 	if err != nil {
 		return n, err
 	}
@@ -320,18 +334,17 @@ func (i VersionOneIndexFile) Append(record IndexRecord) (n int, err error) {
 	i.incrementSize()
 
 	// return num bytes and nil error
-	return written, nil
+	return
 }
 
 // IncrementSize bumps the index size by one.
 func (i *VersionOneIndexFile) incrementSize() {
-	// *i.size++
-	atomic.AddUint64(i.size, 1)
+	i.size++
 }
 
 // Size is the number of elements in the index. Which should coorespond with the number of records in the data file.
-func (i VersionOneIndexFile) Size() uint64 {
-	return atomic.LoadUint64(i.size)
+func (i *VersionOneIndexFile) Size() uint64 {
+	return i.size
 }
 
 // Header returns the file header which describes the index file.
@@ -340,13 +353,10 @@ func (i VersionOneIndexFile) Header() FileHeader {
 }
 
 // Slice returns multiple index records starting at the given offset.
-func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
-
-	// get size
-	var size = atomic.LoadUint64(i.size)
+func (i *VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
 
 	// offset too  or less than 0
-	if offset > int64(size) || offset < 0 {
+	if offset > int64(i.size) || offset < 0 {
 		return nil, ErrSliceOutOfBounds
 
 		// invalid limit
@@ -360,8 +370,8 @@ func (i VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error
 		buf = make([]byte, VersionOneIndexRecordSize*MaximumIndexSlice)
 
 		// request exceeds index size
-	} else if uint64(offset+limit) > size {
-		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(size)))
+	} else if uint64(offset+limit) > i.size {
+		buf = make([]byte, VersionOneIndexRecordSize*(uint64(offset+limit)-(i.size)))
 
 		// full request can be satisfied
 	} else {
@@ -394,7 +404,7 @@ func (s VersionOneIndexSlice) Get(index int) (IndexRecord, error) {
 		return nil, ErrSliceOutOfBounds
 	}
 
-	return VersionOneIndexRecord{&s.buffer, index * VersionOneIndexRecordSize}, nil
+	return versionOneIndexRecord{&s.buffer, index * VersionOneIndexRecordSize}, nil
 }
 
 func (s VersionOneIndexSlice) MarshalBinary() (data []byte, err error) {

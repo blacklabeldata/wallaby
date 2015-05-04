@@ -127,7 +127,9 @@ func TestVersionOneAppend(t *testing.T) {
 	unix := time.Now().UnixNano()
 	i, offset := uint64(0), int64(24)
 	record := BasicIndexRecord{unix, i, offset, 0}
-	n, err := index.Append(record)
+	rencoder := NewIndexRecordEncoder()
+
+	n, err := index.Write(rencoder.Encode(record))
 	assert.Equal(t, VersionOneIndexRecordSize, n, "Invalid index record size")
 
 	size := index.Size()
@@ -137,7 +139,7 @@ func TestVersionOneAppend(t *testing.T) {
 		unix = time.Now().UnixNano()
 		offset = int64(24)
 		record := BasicIndexRecord{unix, uint64(i + 1), offset, 0}
-		n, err := index.Append(record)
+		n, err := index.Write(rencoder.Encode(record))
 		assert.Equal(t, VersionOneIndexRecordSize, int(n), "Invalid index record size")
 		assert.Nil(t, err)
 
@@ -177,11 +179,12 @@ func TestVersionOneSlice(t *testing.T) {
 	assert.NotNil(t, err, "Expected ErrSliceOufOfBounds")
 
 	// append records
+	rencoder := NewIndexRecordEncoder()
 	for i := 0; i < 100; i++ {
 		unix := time.Now().UnixNano()
 		offset := int64(24*i + 8)
 		record := BasicIndexRecord{unix, uint64(i), offset, 0}
-		index.Append(record)
+		index.Write(rencoder.Encode(record))
 	}
 	index.Flush()
 
@@ -221,6 +224,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 
 	// create index factory
 	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
+	rencoder := NewIndexRecordEncoder()
 
 	// var unix, offset int64
 	var record BasicIndexRecord
@@ -228,7 +232,7 @@ func BenchmarkIndexAdd(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		record.nanos = time.Now().UnixNano()
 		record.index = uint64(i)
-		index.Append(record)
+		index.Write(rencoder.Encode(record))
 	}
 
 	// flush to disk and close file
@@ -242,48 +246,48 @@ func BenchmarkIndexAdd(b *testing.B) {
 	b.SetBytes(VersionOneIndexRecordSize)
 }
 
-func BenchmarkIndexSlice(b *testing.B) {
-	dir := "./tests"
-	os.MkdirAll(dir, os.ModeDir|0700)
+// func BenchmarkIndexSlice(b *testing.B) {
+// 	dir := "./tests"
+// 	os.MkdirAll(dir, os.ModeDir|0700)
 
-	// open index file
-	indexfile := filepath.Join(dir, "bench002.idx")
+// 	// open index file
+// 	indexfile := filepath.Join(dir, "bench002.idx")
 
-	// delete prior test file
-	err := os.Remove(indexfile)
-	if err != nil && !os.IsNotExist(err) {
-		b.Error(err)
-	}
+// 	// delete prior test file
+// 	err := os.Remove(indexfile)
+// 	if err != nil && !os.IsNotExist(err) {
+// 		b.Error(err)
+// 	}
 
-	// create index factory
-	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
+// 	// create index factory
+// 	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
-	// append records
-	for i := 0; i < b.N; i++ {
-		unix := time.Now().UnixNano()
-		offset := int64(24*i + 8)
-		record := BasicIndexRecord{unix, uint64(i), offset, 0}
-		index.Append(record)
-	}
-	index.Flush()
+// 	// append records
+// 	for i := 0; i < b.N; i++ {
+// 		unix := time.Now().UnixNano()
+// 		offset := int64(24*i + 8)
+// 		record := BasicIndexRecord{unix, uint64(i), offset, 0}
+// 		index.Append(record)
+// 	}
+// 	index.Flush()
 
-	b.ResetTimer()
+// 	b.ResetTimer()
 
-	// read slice
-	var read int
-	for read < b.N {
-		index.Slice(int64(read), int64(MaximumIndexSlice))
-		read += MaximumIndexSlice
-		// read += slice.Size()
-	}
+// 	// read slice
+// 	var read int
+// 	for read < b.N {
+// 		index.Slice(int64(read), int64(MaximumIndexSlice))
+// 		read += MaximumIndexSlice
+// 		// read += slice.Size()
+// 	}
 
-	// for i := 0; i < slice.Size(); i++ {
-	// 	slice.Get(i)
-	// }
+// 	// for i := 0; i < slice.Size(); i++ {
+// 	// 	slice.Get(i)
+// 	// }
 
-	// close file
-	index.Close()
+// 	// close file
+// 	index.Close()
 
-	// number of bytes per iteration
-	b.SetBytes(VersionOneIndexRecordSize)
-}
+// 	// number of bytes per iteration
+// 	b.SetBytes(VersionOneIndexRecordSize)
+// }
