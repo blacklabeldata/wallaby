@@ -7,6 +7,10 @@ import (
 
 type AtomicStrategy func(file *os.File) io.WriteCloser
 
+func NoSyncOnWrite(file *os.File) io.WriteCloser {
+    return file
+}
+
 func SyncOnWrite(file *os.File) io.WriteCloser {
     return &syncOnWrite{file}
 }
