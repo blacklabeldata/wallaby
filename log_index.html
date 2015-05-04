@@ -2,9 +2,8 @@
 
 <span class="hljs-keyword">import</span> (
 	<span class="hljs-string">"bufio"</span>
+	<span class="hljs-string">"io"</span>
 	<span class="hljs-string">"os"</span>
-	<span class="hljs-string">"sync"</span>
-	<span class="hljs-string">"sync/atomic"</span>
 	<span class="hljs-string">"time"</span>
 
 	<span class="hljs-string">"github.com/eliquious/xbinary"</span>
@@ -12,12 +11,12 @@
 type IndexFactory interface {
     GetOrCreateIndex(flags uint32) (*LogIndex, error)</p></div></div><div class="code"><div class="wrapper"><span class="hljs-comment">// </span>
 <span class="hljs-keyword">type</span> IndexFactory <span class="hljs-keyword">func</span>(filename <span class="hljs-typename">string</span>, version <span class="hljs-typename">uint8</span>, flags <span class="hljs-typename">uint32</span>) (LogIndex, error)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>LogIndex maintains a list of all the records in the log file. IndexRecords</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> LogIndex <span class="hljs-keyword">interface</span> {
+	io.WriteCloser
+
 	Size() <span class="hljs-typename">uint64</span>
 	Header() FileHeader
-	Append(record IndexRecord) (n <span class="hljs-typename">int</span>, err error)
 	Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error)
 	Flush() error
-	Close() error
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>FileHeader describes which version the file was written with. Flags
 represents boolean flags.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> FileHeader <span class="hljs-keyword">interface</span> {
 	Version() <span class="hljs-typename">uint8</span>
@@ -36,6 +35,10 @@ represents boolean flags.</p></div></div><div class="code"><div class="wrapper">
 	index  <span class="hljs-typename">uint64</span>
 	offset <span class="hljs-typename">int64</span>
 	ttl    <span class="hljs-typename">int64</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IndexRecordEncoder writes an <code>IndexRecord</code> into a byte array.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> IndexRecordEncoder <span class="hljs-keyword">interface</span> {
+	Encode(record IndexRecord) []<span class="hljs-typename">byte</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IndexRecordDecoder reads an <code>IndexRecord</code> from a bute array.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> IndexRecordDecoder <span class="hljs-keyword">interface</span> {
+	Decode(data []<span class="hljs-typename">byte</span>) (IndexRecord, error)
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time returns when the record was written to the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) Time() <span class="hljs-typename">int64</span> {
 	<span class="hljs-keyword">return</span> i.nanos
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index is a record&#39;s numerical id.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicIndexRecord) Index() <span class="hljs-typename">uint64</span> {
@@ -56,24 +59,52 @@ calculated as written time + TTL.</p></div></div><div class="code"><div class="w
 	<span class="hljs-keyword">return</span> i.version
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Flags returns the boolean flags for the file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i BasicFileHeader) Flags() <span class="hljs-typename">uint32</span> {
 	<span class="hljs-keyword">return</span> i.flags
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOneIndexRecord implements the bare IndexRecord interface.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> VersionOneIndexRecord <span class="hljs-keyword">struct</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>NewIndexRecordEncoder writes an <code>IndexRecord</code> into a byte array.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> NewIndexRecordEncoder() IndexRecordEncoder {
+	<span class="hljs-keyword">return</span> &amp;indexRecordEncoder{<span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, <span class="hljs-number">32</span>)}
+}
+
+<span class="hljs-keyword">type</span> indexRecordEncoder <span class="hljs-keyword">struct</span> {
+	buffer []<span class="hljs-typename">byte</span>
+}
+
+<span class="hljs-keyword">func</span> (i *indexRecordEncoder) Encode(record IndexRecord) []<span class="hljs-typename">byte</span> {
+	xbinary.LittleEndian.PutInt64(i.buffer, <span class="hljs-number">0</span>, record.Time())
+	xbinary.LittleEndian.PutUint64(i.buffer, <span class="hljs-number">8</span>, record.Index())
+	xbinary.LittleEndian.PutInt64(i.buffer, <span class="hljs-number">16</span>, record.Offset())
+	xbinary.LittleEndian.PutInt64(i.buffer, <span class="hljs-number">24</span>, record.TimeToLive())
+	<span class="hljs-keyword">return</span> i.buffer
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>NewIndexRecordDecoder creates an <code>IndexRecord</code> decoder which decodes byte
+arrays and returns the IndexRecord. An <code>ErrInvalidRecordSize</code> is returned if
+the record cannot be read.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> NewIndexRecordDecoder() IndexRecordDecoder {
+	<span class="hljs-keyword">return</span> &amp;indexRecordDecoder{}
+}
+
+<span class="hljs-keyword">type</span> indexRecordDecoder <span class="hljs-keyword">struct</span> {
+}
+
+<span class="hljs-keyword">func</span> (i *indexRecordDecoder) Decode(record []<span class="hljs-typename">byte</span>) (IndexRecord, error) {
+	<span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(record) != <span class="hljs-number">32</span> {
+		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrInvalidRecordSize
+	}
+	<span class="hljs-keyword">return</span> versionOneIndexRecord{&amp;record, <span class="hljs-number">0</span>}, <span class="hljs-constant">nil</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>versionOneIndexRecord implements the bare IndexRecord interface.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> versionOneIndexRecord <span class="hljs-keyword">struct</span> {
 	buffer *[]<span class="hljs-typename">byte</span>
 	offset <span class="hljs-typename">int</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time returns when the record was written to the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) Time() <span class="hljs-typename">int64</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Time returns when the record was written to the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i versionOneIndexRecord) Time() <span class="hljs-typename">int64</span> {
 	nanos, err := xbinary.LittleEndian.Int64(*i.buffer, <span class="hljs-number">0</span>+i.offset)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		nanos = <span class="hljs-number">0</span>
 	}
 
 	<span class="hljs-keyword">return</span> nanos
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index is a record&#39;s numerical id.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) Index() <span class="hljs-typename">uint64</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Index is a record&#39;s numerical id.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i versionOneIndexRecord) Index() <span class="hljs-typename">uint64</span> {
 	index, err := xbinary.LittleEndian.Uint64(*i.buffer, <span class="hljs-number">8</span>+i.offset)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		index = <span class="hljs-number">0</span>
 	}
 
 	<span class="hljs-keyword">return</span> index
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Offset is the distance the data record is from the start of the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) Offset() <span class="hljs-typename">int64</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Offset is the distance the data record is from the start of the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i versionOneIndexRecord) Offset() <span class="hljs-typename">int64</span> {
 	offset, err := xbinary.LittleEndian.Int64(*i.buffer, <span class="hljs-number">16</span>+i.offset)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		offset = <span class="hljs-number">0</span>
@@ -81,7 +112,7 @@ calculated as written time + TTL.</p></div></div><div class="code"><div class="w
 
 	<span class="hljs-keyword">return</span> offset
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>TimeToLive allows for records to expire after a period of time. TTL is in
-seconds.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) TimeToLive() <span class="hljs-typename">int64</span> {
+seconds.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i versionOneIndexRecord) TimeToLive() <span class="hljs-typename">int64</span> {
 	ttl, err := xbinary.LittleEndian.Int64(*i.buffer, <span class="hljs-number">24</span>+i.offset)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		ttl = <span class="hljs-number">0</span>
@@ -90,7 +121,7 @@ seconds.</p></div></div><div class="code"><div class="wrapper"><span class="hljs
 	<span class="hljs-keyword">return</span> ttl
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IsExpired is a helper function for the index record which returns <code>true</code> if
 the current time is beyond the expiration time. The expiration time is
-calculated as written time + TTL.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexRecord) IsExpired() <span class="hljs-typename">bool</span> {
+calculated as written time + TTL.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i versionOneIndexRecord) IsExpired() <span class="hljs-typename">bool</span> {
 	<span class="hljs-keyword">return</span> time.Now().UnixNano() &gt; i.Time()+i.TimeToLive()
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>GetOrCreateIndex either creates a new file or reads from an existing index
 file.</p>
@@ -129,63 +160,53 @@ The records start immediately following the bit flags.</p></div></div><div class
 
 	}
 
-	<span class="hljs-keyword">var</span> lock sync.Mutex
 	writer := bufio.NewWriterSize(file, <span class="hljs-number">64</span>*<span class="hljs-number">1024</span>)
 	idx := VersionOneIndexFile{
 		fd:     file,
 		writer: writer,
 		header: header,
-		mutex:  lock,
 		extbuf: xbinary.LittleEndian,
-		size:   &amp;size,
+		size:   size,
 		buffer: <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize)}
-	<span class="hljs-keyword">return</span> idx, <span class="hljs-constant">nil</span>
+	<span class="hljs-keyword">return</span> &amp;idx, <span class="hljs-constant">nil</span>
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>VersionOneIndexFile implements the IndexFile interface and is created by VersionOneIndexFactory.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">type</span> VersionOneIndexFile <span class="hljs-keyword">struct</span> {
 	fd     *os.File
 	writer *bufio.Writer
 	header BasicFileHeader
-	mutex  sync.Mutex
 	extbuf xbinary.ExtendedBuffer
-	size   *<span class="hljs-typename">uint64</span>
+	size   <span class="hljs-typename">uint64</span>
 	buffer []<span class="hljs-typename">byte</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Flush writes any buffered data onto permanant storage.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Flush() error {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Flush writes any buffered data onto permanant storage.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) Flush() error {
 	i.writer.Flush()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>sync changes to disk</p></div></div><div class="code"><div class="wrapper">	err := i.fd.Sync()
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		<span class="hljs-keyword">return</span> err
 	}
 	<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Close flushed the index with permanant storage and closes the index.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Close() error {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Close flushed the index with permanant storage and closes the index.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) Close() error {
 	err := i.Flush()
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		<span class="hljs-keyword">return</span> err
 	}
 
 	<span class="hljs-keyword">return</span> i.fd.Close()
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Append adds an index record to the end of the index file. V1 index records have a time, an index and an offset in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Append(record IndexRecord) (n <span class="hljs-typename">int</span>, err error) {
-	i.mutex.Lock()
-	<span class="hljs-keyword">defer</span> i.mutex.Unlock()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>create buffer and byte count</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> written <span class="hljs-typename">int</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write time</p></div></div><div class="code"><div class="wrapper">	n, _ = i.extbuf.PutInt64(i.buffer, <span class="hljs-number">0</span>, record.Time())
-	written += n</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write index</p></div></div><div class="code"><div class="wrapper">	n, _ = i.extbuf.PutUint64(i.buffer, <span class="hljs-number">8</span>, record.Index())
-	written += n</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write byte offset in record file</p></div></div><div class="code"><div class="wrapper">	n, _ = i.extbuf.PutInt64(i.buffer, <span class="hljs-number">16</span>, record.Offset())
-	written += n</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write ttl</p></div></div><div class="code"><div class="wrapper">	n, _ = i.extbuf.PutInt64(i.buffer, <span class="hljs-number">24</span>, record.TimeToLive())
-	written += n</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>check bytes written</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> written &lt; VersionOneIndexRecordSize {
-		<span class="hljs-keyword">return</span> written, ErrWriteIndexHeader
-	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write index buffer to file</p></div></div><div class="code"><div class="wrapper">	n, err = i.writer.Write(i.buffer)
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Append adds an index record to the end of the index file. V1 index records have a time, an index and an offset in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) Write(record []<span class="hljs-typename">byte</span>) (n <span class="hljs-typename">int</span>, err error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>write index buffer to file</p></div></div><div class="code"><div class="wrapper">	n, err = i.writer.Write(record)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
 		<span class="hljs-keyword">return</span> n, err
-	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>increment index size</p></div></div><div class="code"><div class="wrapper">	i.incrementSize()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return num bytes and nil error</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">return</span> written, <span class="hljs-constant">nil</span>
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IncrementSize bumps the index size by one.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) incrementSize() {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>*i.size++</p></div></div><div class="code"><div class="wrapper">	atomic.AddUint64(i.size, <span class="hljs-number">1</span>)
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size is the number of elements in the index. Which should coorespond with the number of records in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Size() <span class="hljs-typename">uint64</span> {
-	<span class="hljs-keyword">return</span> atomic.LoadUint64(i.size)
+	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>increment index size</p></div></div><div class="code"><div class="wrapper">	i.incrementSize()</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>return num bytes and nil error</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">return</span>
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>IncrementSize bumps the index size by one.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) incrementSize() {
+	i.size++
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Size is the number of elements in the index. Which should coorespond with the number of records in the data file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) Size() <span class="hljs-typename">uint64</span> {
+	<span class="hljs-keyword">return</span> i.size
 }</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Header returns the file header which describes the index file.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Header() FileHeader {
 	<span class="hljs-keyword">return</span> i.header
-}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Slice returns multiple index records starting at the given offset.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i VersionOneIndexFile) Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>get size</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">var</span> size = atomic.LoadUint64(i.size)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset too  or less than 0</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> offset &gt; <span class="hljs-typename">int64</span>(size) || offset &lt; <span class="hljs-number">0</span> {
+}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>Slice returns multiple index records starting at the given offset.</p></div></div><div class="code"><div class="wrapper"><span class="hljs-keyword">func</span> (i *VersionOneIndexFile) Slice(offset <span class="hljs-typename">int64</span>, limit <span class="hljs-typename">int64</span>) (IndexSlice, error) {</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>offset too  or less than 0</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> offset &gt; <span class="hljs-typename">int64</span>(i.size) || offset &lt; <span class="hljs-number">0</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrSliceOutOfBounds</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>invalid limit</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> limit &lt; <span class="hljs-number">1</span> {
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrSliceOutOfBounds
 	}
 
 	<span class="hljs-keyword">var</span> buf []<span class="hljs-typename">byte</span></div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>requested slice too large</p></div></div><div class="code"><div class="wrapper">	<span class="hljs-keyword">if</span> limit &gt; MaximumIndexSlice {
-		buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize*MaximumIndexSlice)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>request exceeds index size</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> <span class="hljs-typename">uint64</span>(offset+limit) &gt; size {
-		buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize*(<span class="hljs-typename">uint64</span>(offset+limit)-(size)))</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>full request can be satisfied</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> {
+		buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize*MaximumIndexSlice)</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>request exceeds index size</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> <span class="hljs-typename">uint64</span>(offset+limit) &gt; i.size {
+		buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize*(<span class="hljs-typename">uint64</span>(offset+limit)-(i.size)))</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>full request can be satisfied</p></div></div><div class="code"><div class="wrapper">	} <span class="hljs-keyword">else</span> {
 		buf = <span class="hljs-built_in">make</span>([]<span class="hljs-typename">byte</span>, VersionOneIndexRecordSize*limit)
 	}</div></div></div><div class="segment"><div class="comments "><div class="wrapper"><p>read records into buffer</p></div></div><div class="code"><div class="wrapper">	read, err := i.fd.ReadAt(buf, <span class="hljs-typename">int64</span>(offset*VersionOneIndexRecordSize)+VersionOneIndexHeaderSize)
 	<span class="hljs-keyword">if</span> err != <span class="hljs-constant">nil</span> {
@@ -203,7 +224,7 @@ The records start immediately following the bit flags.</p></div></div><div class
 		<span class="hljs-keyword">return</span> <span class="hljs-constant">nil</span>, ErrSliceOutOfBounds
 	}
 
-	<span class="hljs-keyword">return</span> VersionOneIndexRecord{&amp;s.buffer, index * VersionOneIndexRecordSize}, <span class="hljs-constant">nil</span>
+	<span class="hljs-keyword">return</span> versionOneIndexRecord{&amp;s.buffer, index * VersionOneIndexRecordSize}, <span class="hljs-constant">nil</span>
 }
 
 <span class="hljs-keyword">func</span> (s VersionOneIndexSlice) MarshalBinary() (data []<span class="hljs-typename">byte</span>, err error) {

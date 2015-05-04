@@ -17,20 +17,9 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "README.md",
         "targetPath": "index",
         "pageTitle": "index",
-        "firstHeader": {
-          "type": "heading",
-          "data": {
-            "level": 1,
-            "title": "wallaby",
-            "slug": "wallaby",
-            "isFileHeader": true
-          },
-          "depth": 1
-        },
-        "title": "wallaby"
+        "title": "index"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -45,8 +34,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "formats",
         "title": "formats"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -62,63 +50,9 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "log.go",
         "targetPath": "log",
         "pageTitle": "log",
-        "firstHeader": {
-          "type": "heading",
-          "data": {
-            "level": 1,
-            "title": "Log Implementations",
-            "slug": "log-implementations",
-            "isFileHeader": true
-          },
-          "depth": 1,
-          "children": [
-            {
-              "type": "heading",
-              "data": {
-                "level": 3,
-                "title": "Close",
-                "slug": "close"
-              },
-              "depth": 3,
-              "children": [
-                {
-                  "type": "heading",
-                  "data": {
-                    "level": 5,
-                    "title": "Implementation",
-                    "slug": "implementation"
-                  },
-                  "depth": 5
-                }
-              ]
-            }
-          ]
-        },
-        "title": "Log Implementations"
+        "title": "log"
       },
-      "depth": 1,
-      "outline": [
-        {
-          "type": "heading",
-          "data": {
-            "level": 3,
-            "title": "Close",
-            "slug": "close"
-          },
-          "depth": 3,
-          "children": [
-            {
-              "type": "heading",
-              "data": {
-                "level": 5,
-                "title": "Implementation",
-                "slug": "implementation"
-              },
-              "depth": 5
-            }
-          ]
-        }
-      ]
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -136,8 +70,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index",
         "title": "log_index"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -155,8 +88,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_index_test",
         "title": "log_index_test"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -174,8 +106,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "log_test",
         "title": "log_test"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -193,8 +124,25 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "snapshot",
         "title": "snapshot"
       },
-      "depth": 1,
-      "outline": []
+      "depth": 1
+    }, {
+      "type": "file",
+      "data": {
+        "language": {
+          "nameMatchers": [".go"],
+          "pygmentsLexer": "go",
+          "singleLineComment": ["//"],
+          "ignorePrefix": "}",
+          "foldPrefix": "^",
+          "name": "Go"
+        },
+        "sourcePath": "/Users/mfranks/.go/src/github.com/eliquious/wallaby/strategy.go",
+        "projectPath": "strategy.go",
+        "targetPath": "strategy",
+        "pageTitle": "strategy",
+        "title": "strategy"
+      },
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -210,89 +158,9 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "projectPath": "wal.go",
         "targetPath": "wal",
         "pageTitle": "wal",
-        "firstHeader": {
-          "type": "heading",
-          "data": {
-            "level": 1,
-            "title": "wallaby - Write Ahead Log",
-            "slug": "wallaby-write-ahead-log",
-            "isFileHeader": true
-          },
-          "depth": 1,
-          "children": [
-            {
-              "type": "heading",
-              "data": {
-                "level": 6,
-                "title": "Implementation",
-                "slug": "implementation"
-              },
-              "depth": 6
-            }, {
-              "type": "heading",
-              "data": {
-                "level": 6,
-                "title": "Implentation",
-                "slug": "implentation"
-              },
-              "depth": 6
-            }, {
-              "type": "heading",
-              "data": {
-                "level": 6,
-                "title": "Implementation",
-                "slug": "implementation"
-              },
-              "depth": 6
-            }, {
-              "type": "heading",
-              "data": {
-                "level": 6,
-                "title": "Implementation",
-                "slug": "implementation"
-              },
-              "depth": 6
-            }
-          ]
-        },
-        "title": "wallaby - Write Ahead Log"
+        "title": "wal"
       },
-      "depth": 1,
-      "outline": [
-        {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implentation",
-            "slug": "implentation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 6,
-            "title": "Implementation",
-            "slug": "implementation"
-          },
-          "depth": 6
-        }
-      ]
+      "depth": 1
     }, {
       "type": "file",
       "data": {
@@ -310,42 +178,7 @@ f.event={add:function(a,c,d,e,g){var h,i,j,k,l,m,n,o,p,q,r,s;if(!(a.nodeType===3
         "pageTitle": "writers",
         "title": "writers"
       },
-      "depth": 1,
-      "outline": [
-        {
-          "type": "heading",
-          "data": {
-            "level": 4,
-            "title": "Write",
-            "slug": "write"
-          },
-          "depth": 4
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 4,
-            "title": "Close",
-            "slug": "close"
-          },
-          "depth": 4
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 4,
-            "title": "Write",
-            "slug": "write"
-          },
-          "depth": 4
-        }, {
-          "type": "heading",
-          "data": {
-            "level": 4,
-            "title": "Close",
-            "slug": "close"
-          },
-          "depth": 4
-        }
-      ]
+      "depth": 1
     }
   ];
 
