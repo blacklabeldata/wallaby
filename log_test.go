@@ -250,3 +250,110 @@ func BenchmarkLargeBufferedAtomicWriter(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkNoSyncWriter(b *testing.B) {
+
+	config := DefaultTestConfig
+	config.Strategy = NoSyncOnWrite
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", config)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkNoSyncBufferedWriter(b *testing.B) {
+
+	config := DefaultTestConfig
+	config.Strategy = NoSyncOnWrite
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", config)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(256 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 64)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
+
+func BenchmarkNoSyncBufferedWriterLargeRecord(b *testing.B) {
+
+	config := DefaultTestConfig
+	config.Strategy = NoSyncOnWrite
+
+	// create log file
+	log, err := Create("./tests/bench.append.log", config)
+	if err != nil {
+		b.Fail()
+		return
+	}
+	defer log.Close()
+	log.Use(NewBufferedWriter(256 * 1024))
+
+	// open log
+	err = log.Open()
+	if err != nil {
+		b.Fail()
+		return
+	}
+
+	buffer := make([]byte, 4096)
+
+	b.SetBytes(88)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+
+		// append record
+		_, err := log.Write(buffer)
+		if err != nil {
+			b.Fail()
+			return
+		}
+	}
+}
