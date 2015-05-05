@@ -310,7 +310,6 @@ type versionOneLogFile struct {
 func (v *versionOneLogFile) Open() error {
 	v.Use(func(writer io.WriteCloser) io.WriteCloser {
 		return v1LogRecordFactory{v.config.MaxRecordSize, 0, 0, make([]byte, 0, v.config.MaxRecordSize+VersionOneLogRecordHeaderSize), writer}
-
 	})
 
 	if v.state == OPEN {

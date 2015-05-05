@@ -50,6 +50,9 @@ var (
     // - `ErrWriteLogRecord` occurs when a record fails to be written to the log
     ErrWriteLogRecord = errors.New("failed to write record")
 
+    // - `ErrReadLogRecord` occurs when a record fails to be read from the log
+    ErrReadLogRecord = errors.New("failed to read record")
+
     // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened again
     ErrLogAlreadyOpen = errors.New("log already open")
 
