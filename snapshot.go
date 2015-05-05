@@ -4,7 +4,7 @@ import (
     "encoding"
     "time"
 
-    "github.com/eliquious/xbinary"
+    "github.com/swiftkick-io/xbinary"
 )
 
 // ### **Snapshot**

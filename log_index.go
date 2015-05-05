@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/eliquious/xbinary"
+	"github.com/swiftkick-io/xbinary"
 )
 
 // IndexFactory creates an index. The reason for this is solely for future growth... perhaps a bit premature. The main reason is for future versions of log files or different backing stores.

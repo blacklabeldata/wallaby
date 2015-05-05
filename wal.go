@@ -10,7 +10,7 @@ import (
     "os"
 
     xxhash "github.com/OneOfOne/xxhash/native"
-    "github.com/eliquious/xbinary"
+    "github.com/swiftkick-io/xbinary"
 )
 
 // ## **Possible Log Errors**
