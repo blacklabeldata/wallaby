@@ -1,43 +1,12 @@
 package wallaby
 
 import (
-<<<<<<< Updated upstream
-=======
     "fmt"
->>>>>>> Stashed changes
     "os"
 
     "github.com/swiftkick-io/xbinary"
 )
 
-<<<<<<< Updated upstream
-type versionOneLogCursor struct {
-    index        LogIndex
-    file         *os.File
-    slice        *IndexSlice
-    sliceOffset  int
-    position     int64
-    recordBuffer []byte
-}
-
-func (c *versionOneLogCursor) Seek(offset int64) (LogRecord, error) {
-    slice, err := c.index.Slice(offset, MaximumIndexSlice)
-    if err != nil {
-        return nil, err
-    }
-
-    // save slice
-    c.slice = &slice
-    c.position = offset + 1
-    c.sliceOffset = 1
-
-    indexRecord, err := slice.Get(0)
-    if err != nil {
-        return nil, err
-    }
-
-    n, err := c.file.ReadAt(c.recordBuffer[:VersionOneLogRecordHeaderSize], indexRecord.Offset())
-=======
 // versionOneLogCursor implements the LogCursor interface.
 type versionOneLogCursor struct {
     index        LogIndex
@@ -96,32 +65,22 @@ func (c *versionOneLogCursor) Next() (LogRecord, error) {
 
     // If the number of bytes read is not equal to the number of bytes in the record header, return error
     // If the file could not be read also return an error.
->>>>>>> Stashed changes
     if n != VersionOneLogRecordHeaderSize {
         return nil, ErrReadLogRecord
     } else if err != nil {
         return nil, ErrReadLogRecord
     }
 
-<<<<<<< Updated upstream
-    // read size
-    size, err := xbinary.LittleEndian.Int32(c.recordBuffer, 0)
-=======
     // Read record size
     size, err := xbinary.LittleEndian.Int32(c.recordBuffer, 0)
     fmt.Println("size: ", size)
->>>>>>> Stashed changes
     if err != nil {
         return nil, ErrReadLogRecord
     } else if int(size) > len(c.recordBuffer) {
         return nil, ErrInvalidRecordSize
     }
 
-<<<<<<< Updated upstream
-    // read record
-=======
     // Read record data
->>>>>>> Stashed changes
     n, err = c.file.ReadAt(c.recordBuffer[VersionOneLogRecordHeaderSize:VersionOneLogRecordHeaderSize+size],
         indexRecord.Offset()+VersionOneLogRecordHeaderSize)
     if n != int(size) {
@@ -131,10 +90,7 @@ func (c *versionOneLogCursor) Next() (LogRecord, error) {
     // success
     return UnmarshalBasicLogRecord(c.recordBuffer[:VersionOneLogRecordHeaderSize+size])
 }
-<<<<<<< Updated upstream
-=======
 
 func (c *versionOneLogCursor) Close() error {
     return c.file.Close()
 }
->>>>>>> Stashed changes

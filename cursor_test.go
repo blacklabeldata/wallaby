@@ -1,18 +1,12 @@
 package wallaby
 
 import (
-<<<<<<< Updated upstream
-    "testing"
-
-    "github.com/stretchr/testify/assert"
-=======
     "fmt"
     "os"
     "testing"
 
     "github.com/stretchr/testify/assert"
     "github.com/swiftkick-io/xbinary"
->>>>>>> Stashed changes
 )
 
 func TestCursor(t *testing.T) {
@@ -30,11 +24,7 @@ func TestCursor(t *testing.T) {
     buffer := make([]byte, 8)
 
     var i int
-<<<<<<< Updated upstream
-    for i < 5000 {
-=======
     for i < 5 {
->>>>>>> Stashed changes
         xbinary.LittleEndian.PutUint64(buffer, 0, uint64(i))
 
         // append record
@@ -45,14 +35,6 @@ func TestCursor(t *testing.T) {
         i++
     }
 
-<<<<<<< Updated upstream
-    cursor := log.Cursor()
-    assert.NotNil(cursor)
-
-    i = 0
-    for record, err := cursor.Seek(0); err != nil; record, err = cursor.Next() {
-        buf := record.Data()
-=======
     cursor, err := log.Cursor()
     assert.Nil(t, err)
     assert.NotNil(t, cursor)
@@ -66,14 +48,10 @@ func TestCursor(t *testing.T) {
 
         buf := record.Data()
         fmt.Println(i, " len: ", len(buf))
->>>>>>> Stashed changes
         j, err := xbinary.LittleEndian.Uint64(buf, 0)
         assert.Equal(t, j, uint64(i))
         assert.Equal(t, j, record.Index())
         assert.Nil(t, err)
-<<<<<<< Updated upstream
-    }
-=======
         i++
     }
     fmt.Println(err)
@@ -124,5 +102,4 @@ func TestCursorAllocateSlice(t *testing.T) {
 
     assert.NotNil(t, cursor.slice)
     fmt.Println(cursor.slice.Size())
->>>>>>> Stashed changes
 }
