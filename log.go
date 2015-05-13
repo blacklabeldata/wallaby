@@ -54,7 +54,7 @@ type WriteAheadLog interface {
 	// ###### *Cursor*
 
 	// Creates a new Cursor initialized at index 0
-	Cursor() LogCursor
+	Cursor() (LogCursor, error)
 
 	// ###### *Use*
 
@@ -398,8 +398,12 @@ func (v *versionOneLogFile) Write(data []byte) (n int, err error) {
 
 // ###### *Cursor*
 
-func (v *versionOneLogFile) Cursor() LogCursor {
-	return nil
+func (v *versionOneLogFile) Cursor() (LogCursor, error) {
+	file, err := os.Open(v.fd.Name())
+	if err != nil {
+		return nil, err
+	}
+	return &versionOneLogCursor{v.index, file, nil, 0, 0, make([]byte, v.config.MaxRecordSize+24)}, nil
 }
 
 // ###### *Snapshot*
@@ -454,7 +458,10 @@ func (v *versionOneLogFile) Close() error {
 func (v *versionOneLogFile) Pipe(offset, limit uint64, writer io.Writer) error {
 
 	// Create a new record cursor, closing it when exiting the function.
-	cur := v.Cursor()
+	cur, err := v.Cursor()
+	if err != nil {
+		return err
+	}
 	defer cur.Close()
 
 	// Seek to the given `offset` and read the records until the number of

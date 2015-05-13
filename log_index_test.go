@@ -1,6 +1,7 @@
 package wallaby
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,6 +32,116 @@ func TestIndexRecord(t *testing.T) {
 
 	// offset
 	assert.Equal(t, offset, ir.Offset())
+
+	// ttl
+	assert.False(t, ir.IsExpired())
+}
+
+func TestIndexRecordExpired(t *testing.T) {
+	now := time.Now()
+
+	unix := now.UnixNano()
+	index, offset := uint64(0), int64(24)
+	ir := BasicIndexRecord{unix, index, offset, 20}
+
+	// time
+	assert.Equal(t, unix, ir.Time())
+
+	// index
+	assert.Equal(t, index, ir.Index())
+
+	// offset
+	assert.Equal(t, offset, ir.Offset())
+
+	// ttl
+	assert.True(t, true, ir.IsExpired())
+}
+
+func TestIndexRecordEncodeDecode(t *testing.T) {
+	now := time.Now()
+
+	unix := now.UnixNano()
+	index, offset := uint64(0), int64(24)
+	ir := BasicIndexRecord{unix, index, offset, 0}
+
+	encoder := NewIndexRecordEncoder()
+	decoder := NewIndexRecordDecoder()
+	buffer := encoder.Encode(ir)
+
+	record, err := decoder.Decode(buffer)
+	assert.Nil(t, err)
+
+	// time
+	assert.Equal(t, ir.Time(), record.Time())
+
+	// index
+	assert.Equal(t, ir.Index(), record.Index())
+
+	// offset
+	assert.Equal(t, ir.Offset(), record.Offset())
+
+	// ttl
+	assert.Equal(t, ir.TimeToLive(), record.TimeToLive())
+	assert.False(t, ir.IsExpired())
+	assert.False(t, record.IsExpired())
+}
+
+func TestIndexRecordEncodeDecodeExpired(t *testing.T) {
+	now := time.Now()
+
+	unix := now.UnixNano()
+	index, offset := uint64(0), int64(24)
+	ir := BasicIndexRecord{unix, index, offset, 1}
+
+	encoder := NewIndexRecordEncoder()
+	decoder := NewIndexRecordDecoder()
+	buffer := encoder.Encode(ir)
+
+	record, err := decoder.Decode(buffer)
+	assert.Nil(t, err)
+
+	// time
+	assert.Equal(t, ir.Time(), record.Time())
+
+	// index
+	assert.Equal(t, ir.Index(), record.Index())
+
+	// offset
+	assert.Equal(t, ir.Offset(), record.Offset())
+
+	// ttl
+	assert.Equal(t, ir.TimeToLive(), record.TimeToLive())
+	assert.True(t, ir.IsExpired())
+	assert.True(t, record.IsExpired())
+}
+
+func TestIndexRecordDecode(t *testing.T) {
+
+	decoder := NewIndexRecordDecoder()
+	buffer := make([]byte, 31)
+
+	record, err := decoder.Decode(buffer)
+	assert.Nil(t, record)
+	assert.Equal(t, err, ErrInvalidRecordSize)
+}
+
+func TestVersionOneIndexRecordInvalidBuffer(t *testing.T) {
+
+	var buffer []byte
+	ir := versionOneIndexRecord{&buffer, 0}
+
+	// time
+	assert.Equal(t, int64(0), ir.Time())
+
+	// index
+	assert.Equal(t, uint64(0), ir.Index())
+
+	// offset
+	assert.Equal(t, int64(0), ir.Offset())
+
+	// ttl
+	assert.Equal(t, int64(0), ir.TimeToLive())
+	assert.False(t, ir.IsExpired())
 }
 
 func TestIndexHeader(t *testing.T) {
@@ -105,7 +216,7 @@ func TestVersionOneCreateIndexExisting(t *testing.T) {
 	assert.Equal(t, 0, int(size))
 }
 
-func TestVersionOneAppend(t *testing.T) {
+func TestVersionOneIndexAppend(t *testing.T) {
 	dir := createTestDir(t)
 
 	// open index file
@@ -148,7 +259,7 @@ func TestVersionOneAppend(t *testing.T) {
 	}
 }
 
-func TestVersionOneSlice(t *testing.T) {
+func TestVersionOneIndexSlice(t *testing.T) {
 	dir := createTestDir(t)
 
 	// open index file
@@ -163,17 +274,12 @@ func TestVersionOneSlice(t *testing.T) {
 	// create index factory
 	index, err := VersionOneIndexFactory(indexfile, VersionOne, DefaultIndexFlags)
 
-	// offset out of range
+	// out of range as offset is greater than size
 	slice, err := index.Slice(1, 1)
 	assert.Nil(t, slice, "Slice should be nil for invalid offset")
 	assert.NotNil(t, err, "Expected ErrSliceOufOfBounds")
 
-	// offset out of range
-	slice, err = index.Slice(0, 1)
-	assert.Nil(t, slice, "Slice should be nil for invalid offset")
-	assert.NotNil(t, err, "Expected ErrSliceOufOfBounds")
-
-	// limit out of range
+	// limit cannot be 0
 	slice, err = index.Slice(1, 0)
 	assert.Nil(t, slice, "Slice should be nil for invalid limit")
 	assert.NotNil(t, err, "Expected ErrSliceOufOfBounds")
@@ -187,13 +293,16 @@ func TestVersionOneSlice(t *testing.T) {
 		index.Write(rencoder.Encode(record))
 	}
 	index.Flush()
+	fmt.Println(index.Size())
 
-	// read Slice
+	// read Slice and verify size
 	slice, err = index.Slice(0, 5)
 	assert.Equal(t, 5, slice.Size(), "Slice should contain 5 index records")
 
 	var unix int64
 	for i := 0; i < slice.Size(); i++ {
+
+		// get slice record
 		record, err := slice.Get(i)
 		assert.Nil(t, err, "Get should not produce an error")
 
@@ -201,7 +310,6 @@ func TestVersionOneSlice(t *testing.T) {
 		assert.Equal(t, uint64(i), record.Index(), "Invalid record index")
 		assert.True(t, record.Time() > unix, "Each record's time should be greater than the last")
 		unix = record.Time()
-
 	}
 
 	// close file

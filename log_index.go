@@ -21,7 +21,7 @@ type LogIndex interface {
 
 	Size() uint64
 	Header() FileHeader
-	Slice(offset int64, limit int64) (IndexSlice, error)
+	Slice(offset uint64, limit uint64) (IndexSlice, error)
 	Flush() error
 }
 
@@ -81,7 +81,7 @@ func (i BasicIndexRecord) Offset() int64 {
 }
 
 // TimeToLive allows for records to expire after a period of time. TTL is in
-// seconds.
+// nanoseconds.
 func (i BasicIndexRecord) TimeToLive() int64 {
 	return i.ttl
 }
@@ -90,7 +90,10 @@ func (i BasicIndexRecord) TimeToLive() int64 {
 // the current time is beyond the expiration time. The expiration time is
 // calculated as written time + TTL.
 func (i BasicIndexRecord) IsExpired() bool {
-	return time.Now().After(time.Unix(i.nanos, 0).Add(time.Duration(i.ttl)))
+	if i.ttl == 0 {
+		return false
+	}
+	return time.Now().UnixNano() > i.nanos+i.ttl
 }
 
 // BasicFileHeader is the simplest implementation of the FileHeader interface.
@@ -194,7 +197,11 @@ func (i versionOneIndexRecord) TimeToLive() int64 {
 // the current time is beyond the expiration time. The expiration time is
 // calculated as written time + TTL.
 func (i versionOneIndexRecord) IsExpired() bool {
-	return time.Now().UnixNano() > i.Time()+i.TimeToLive()
+	ttl := i.TimeToLive()
+	if ttl == 0 {
+		return false
+	}
+	return time.Now().UnixNano() > i.Time()+ttl
 }
 
 // GetOrCreateIndex either creates a new file or reads from an existing index
@@ -304,11 +311,7 @@ func (i *VersionOneIndexFile) Flush() error {
 	i.writer.Flush()
 
 	// sync changes to disk
-	err := i.fd.Sync()
-	if err != nil {
-		return err
-	}
-	return nil
+	return i.fd.Sync()
 }
 
 // Close flushed the index with permanant storage and closes the index.
@@ -353,10 +356,10 @@ func (i VersionOneIndexFile) Header() FileHeader {
 }
 
 // Slice returns multiple index records starting at the given offset.
-func (i *VersionOneIndexFile) Slice(offset int64, limit int64) (IndexSlice, error) {
+func (i *VersionOneIndexFile) Slice(offset uint64, limit uint64) (IndexSlice, error) {
 
-	// offset too  or less than 0
-	if offset > int64(i.size) || offset < 0 {
+	// offset less than 0
+	if offset > uint64(i.size) || offset < 0 {
 		return nil, ErrSliceOutOfBounds
 
 		// invalid limit
