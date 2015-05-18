@@ -115,6 +115,7 @@ func (r BasicLogRecord) Size() uint32 {
     return r.size
 }
 
+// IsExpired determines if the record is expired.
 func (r BasicLogRecord) IsExpired(now, ttl int64) bool {
     if ttl <= 0 {
         return false
@@ -125,6 +126,11 @@ func (r BasicLogRecord) IsExpired(now, ttl int64) bool {
 // Data returns the associated byte buffer.
 func (r BasicLogRecord) Data() []byte {
     return r.data
+}
+
+// NewIndexRecord creates a new index record.
+func NewIndexRecord(nanos, offset int64, index uint64) IndexRecord {
+    return &BasicIndexRecord{nanos, index, offset}
 }
 
 // BasicIndexRecord implements the bare IndexRecord interface.
