@@ -10,7 +10,7 @@ import (
 // WriteAheadLog implements an immutable write-ahead log file with indexes and
 // snapshots.
 type WriteAheadLog interface {
-    m3.Writer
+    io.WriteCloser
 
     // ###### *State*
 
@@ -97,8 +97,7 @@ type LogIndex interface {
 
     Size() uint64
     Header() FileHeader
-    Slice(offset uint64, limit uint64) (IndexSlice, error)
-    Flush() error
+    // Slice(offset uint64, limit uint64) (IndexSlice, error)
 }
 
 // FileHeader describes which version the file was written with. Flags
@@ -124,10 +123,10 @@ type IndexRecord interface {
 }
 
 // IndexRecordEncoder writes an `IndexRecord` into a byte array.
-type IndexRecordEncoder func(record IndexRecord, writer io.Writer) (int, error)
+type IndexRecordEncoder func(record IndexRecord) (int, error)
 
 // IndexRecordDecoder reads an `IndexRecord` from a bute array.
-type IndexRecordDecoder func(reader io.Reader) (IndexRecord, error)
+type IndexRecordDecoder func() (IndexRecord, error)
 
 // IndexFactory creates an index based on the filename, version and flags given
 type IndexFactory func(filename string, version uint8, flags uint32) (LogIndex, error)
