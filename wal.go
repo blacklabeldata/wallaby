@@ -6,157 +6,11 @@ package wallaby
 
 import (
     "bytes"
-    "errors"
     "os"
 
-    xxhash "github.com/OneOfOne/xxhash/native"
+    "github.com/swiftkick-io/wallaby/v1"
     "github.com/swiftkick-io/xbinary"
 )
-
-// ## **Possible Log Errors**
-
-var (
-    // - `ErrReadIndexHeader` occurs when the index header cannot be read
-    ErrReadIndexHeader = errors.New("failed to read index header")
-
-    // - `ErrWriteIndexHeader` occurs when the index header cannot be written
-    ErrWriteIndexHeader = errors.New("failed to write index header")
-
-    // - `ErrReadLogHeader` occurs when the log header cannot be read
-    ErrReadLogHeader = errors.New("failed to read log header")
-
-    // - `ErrWriteLogHeader` occurs when the log header cannot be written
-    ErrWriteLogHeader = errors.New("failed to write log header")
-
-    // - `ErrSliceOutOfBounds` occurs when index.Slice is called and the offset
-    // is larger than the size of the index.
-    ErrSliceOutOfBounds = errors.New("read offset out of bounds")
-
-    // - `ErrReadIndex` occurs when index.Slice fails to read the records
-    ErrReadIndex = errors.New("failed to read index records")
-
-    // - `ErrConfigRequired` occurs when no log config is given when creating
-    // or opening a log file.
-    ErrConfigRequired = errors.New("log config required")
-
-    // - `ErrInvalidFileVersion` occurs when the version in the file header
-    // is unrecognized.
-    ErrInvalidFileVersion = errors.New("invalid file version")
-
-    // - `ErrInvalidFileSignature` occurs when the signature in the file header
-    // is unrecognized.
-    ErrInvalidFileSignature = errors.New("invalid file signature")
-
-    // - `ErrWriteLogRecord` occurs when a record fails to be written to the log
-    ErrWriteLogRecord = errors.New("failed to write record")
-
-    // - `ErrReadLogRecord` occurs when a record fails to be read from the log
-    ErrReadLogRecord = errors.New("failed to read record")
-
-    // - `ErrLogAlreadyOpen` occurs when an open log tries to be opened again
-    ErrLogAlreadyOpen = errors.New("log already open")
-
-    // - `ErrLogClosed` occurs when `Append` is called after the log has been
-    // closed.
-    ErrLogClosed = errors.New("log has been closed")
-
-    // `ErrRecordTooLarge` occurs when writing a record which exceed the max
-    // record size for the log.
-    ErrRecordTooLarge = errors.New("record is too large")
-
-    // ErrExceedsBufferSize occurs when the BufferedWriter is not large enough
-    // to contain all the data being written to it.
-    ErrExceedsBufferSize = errors.New("buffer too large")
-
-    // ErrInvalidRecordSize
-    ErrInvalidRecordSize = errors.New("invalid record size")
-
-    // ErrInvalidSnapshot occurs when a Snapshot cannot be decoded.
-    ErrInvalidSnapshot = errors.New("invalid snapshot")
-
-    // ErrInvalidTTL occurs when the `config.TimeToLive` is less than 0
-    ErrInvalidTTL = errors.New("invalid ttl; must be >= 0")
-
-    // ErrInvalidLogStrategy occurs when the `config.Strategy` is nil
-    ErrInvalidLogStrategy = errors.New("invalid write strategy")
-
-    // ## **Log Variables**
-
-    // Log signature bytes - `LOG`
-    LogFileSignature = []byte("LOG")
-
-    // Index signature bytes - `IDX`
-    IndexFileSignature = []byte("IDX")
-)
-
-// ## **Log Constants**
-
-const (
-    // - `DefaultIndexFlags` is the default boolean flags for an index file.
-    DefaultIndexFlags = 0
-
-    // - `DefaultRecordFlags` represents the default boolean flags for each log record.
-    DefaultRecordFlags uint32 = 0
-
-    // - `DefaultMaxRecordSize` is the default maximum size of a log record.
-    DefaultMaxRecordSize = 0xffff
-
-    // - `LogHeaderSize` is the size of the file header.
-    LogHeaderSize = 8
-
-    // - `VersionOne` is an integer denoting the first version
-    VersionOne = 1
-
-    // - `VersionOneIndexHeaderSize` is the size of the index file header.
-    VersionOneIndexHeaderSize = 8
-
-    // - `VersionOneIndexRecordSize` is the size of the index records.
-    VersionOneIndexRecordSize = 32
-
-    // - `VersionOneLogHeaderSize` is the header size of version 1 log files
-    VersionOneLogHeaderSize = 8
-
-    // - `VersionOneLogRecordHeaderSize` is the size of the log record headers.
-    VersionOneLogRecordHeaderSize = 24
-
-    // - `MaximumIndexSlice` is the maximum number of index records to be read at
-    // one time
-    MaximumIndexSlice = 32000
-)
-
-// ## **Metadata**
-// Metadata simply contains descriptive information about the log
-type Metadata struct {
-    Size             int64
-    LastModifiedTime int64
-    FileName         string
-    IndexFileName    string
-}
-
-// ## **Config**
-
-// Config stores several log settings. This is used to describe how the log
-// should be opened.
-type Config struct {
-    FileMode      os.FileMode
-    MaxRecordSize int
-    Flags         uint32
-    Version       uint8
-    Truncate      bool
-    TimeToLive    int64
-    Strategy      AtomicStrategy
-}
-
-// > `DefaultConfig` can be used for sensible default log configuration.
-var DefaultConfig Config = Config{
-    FileMode:      0600,
-    MaxRecordSize: DefaultMaxRecordSize,
-    Flags:         DefaultRecordFlags,
-    Version:       VersionOne,
-    Truncate:      false,
-    TimeToLive:    0,
-    Strategy:      SyncOnWrite,
-}
 
 // ## **Create a log file**
 // Create returns a `WriteAheadLog` implementation if no errors occur. If the
@@ -325,36 +179,8 @@ func openExisting(file *os.File, filename string, config Config) (WriteAheadLog,
 func selectVersion(file *os.File, filename string, config Config) (WriteAheadLog, error) {
     switch config.Version {
     case VersionOne:
-        return createVersionOne(file, filename, config)
+        return v1.Create(file, filename, config)
     default:
         return nil, ErrInvalidFileVersion
     }
-}
-
-// ### **Creates a v1 log file**
-// This function is used when creating a v1 log file.
-
-// ###### *Implementation*
-func createVersionOne(file *os.File, filename string, config Config) (WriteAheadLog, error) {
-
-    // Create the file header structure from the log flags and version.
-    header := BasicFileHeader{flags: config.Flags, version: config.Version}
-
-    index, err := VersionOneIndexFactory(filename+".idx", config.Version, config.Flags)
-    if err != nil {
-        file.Close()
-        return nil, err
-    }
-
-    // Stat the file to get the size. If unsuccessful, close the file and return
-    // the error.
-    stat, err := file.Stat()
-    if err != nil {
-        file.Close()
-        return nil, err
-    }
-
-    // Finally, create the log file and return.
-    return &versionOneLogFile{file, config.Strategy(file), config, header, index,
-        stat.Size(), UNOPENED, xxhash.New64(), make([]byte, VersionOneIndexRecordSize), config.TimeToLive, int64(stat.ModTime().Nanosecond())}, nil
 }
