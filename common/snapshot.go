@@ -15,6 +15,10 @@ type Snapshot interface {
     encoding.BinaryMarshaler
 }
 
+func NewSnapshot(nanos, size int64, hash uint64) Snapshot {
+    return BasicSnapshot{nanos, size, hash}
+}
+
 // BasicSnapshot represents the simplest snapshot which fulfills the Snapshot interface. The timestamp is stored as nanoseconds since epoch. Both size and hash are stored as 64-bit integers.
 type BasicSnapshot struct {
     nanos int64
