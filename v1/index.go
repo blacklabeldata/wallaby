@@ -83,19 +83,10 @@ func (i RawIndexRecord) IsExpired(now, ttl int64) bool {
     return now > i.Time()+ttl
 }
 
-// GetOrCreateIndex either creates a new file or reads from an existing index
-// file.
-//
 // VersionOneLogHeader starts with a 3-byte string, "IDX", followed by an 8-bit
 // version. After the version, a uint32 represents the boolean flags.
 // The records start immediately following the bit flags.
-func VersionOneIndexFactory(filename string, version uint8, flags uint32, expiration int64) (common.LogIndex, error) {
-
-    // try to open index file, return error on fail
-    file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
-    if err != nil {
-        return nil, err
-    }
+func VersionOneIndexFactory(file *os.File, version uint8, flags uint32, expiration int64) (common.LogIndex, error) {
 
     // get file stat, close file and return on error
     stat, err := file.Stat()
@@ -105,7 +96,6 @@ func VersionOneIndexFactory(filename string, version uint8, flags uint32, expira
     }
 
     // get header, on error close file and return
-    buf := make([]byte, IndexHeaderSize)
     var header common.FileHeader
     var size uint64
 
@@ -113,7 +103,7 @@ func VersionOneIndexFactory(filename string, version uint8, flags uint32, expira
     if stat.Size() >= IndexHeaderSize {
 
         // read file header
-        header, err := common.ReadFileHeader(file)
+        header, err = common.ReadFileHeader(file)
         if err != nil {
             file.Close()
             return nil, err
@@ -155,7 +145,7 @@ func VersionOneIndexFactory(filename string, version uint8, flags uint32, expira
         header = common.NewFileHeader(VersionOne, flags, expiration)
 
         // write file header
-        n, err := common.WriteFileHeader(common.IndexFileSignature, header, file)
+        _, err := common.WriteFileHeader(common.IndexFileSignature, header, file)
         if err != nil {
             file.Close()
             return nil, common.ErrWriteIndexHeader
