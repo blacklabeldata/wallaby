@@ -12,19 +12,6 @@ import (
 type WriteAheadLog interface {
     io.WriteCloser
 
-    // ###### *State*
-
-    // `State` returns the current state of the log file.
-    State() State
-
-    // ###### *Open*
-
-    // `Open` opens the log for appending. Prior to this call the log state
-    // should be CLOSED. Once this is called State() should return OPEN.
-    Open() error
-
-    // ###### *Recover*
-
     // Recover should be called when the log is opened to verify consistency
     // of the log.
     Recover() error
@@ -38,7 +25,7 @@ type WriteAheadLog interface {
 
     // Pipe copies the raw byte stream into the given `io.Writer` starting at a
     // record offset and reading up until the given limit.
-    Pipe(offset, limit uint64, writer io.Writer) error
+    // Pipe(offset, limit uint64, writer io.Writer) error
 
     // ###### *Snapshot*
 
@@ -130,6 +117,12 @@ type IndexRecordDecoder func() (IndexRecord, error)
 
 // IndexFactory creates an index based on the filename, version and flags given
 type IndexFactory func(filename string, version uint8, flags uint32) (LogIndex, error)
+
+// LogRecordEncoder writes a new record into the given writer.
+type LogRecordEncoder func(index uint64, flags uint32, timestamp int64, data []byte) (int, error)
+
+// LogRecordDecoder reads a record from the given reader.
+type LogRecordDecoder func() (LogRecord, error)
 
 // Metadata simply contains descriptive information about the log
 type Metadata struct {
