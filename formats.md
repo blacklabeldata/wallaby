@@ -28,7 +28,7 @@ TTL is a duration specified in nanoseconds.
 
 ```
 
-- `IDX` file signature
+- `LOG` file signature
 - an unsigned 8-bit integer to represent the file version
 - an unsigned 32-bit integer for boolean flags
 - a signed 64-bit integer for time to live
