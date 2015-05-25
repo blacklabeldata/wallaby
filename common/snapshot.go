@@ -1,4 +1,4 @@
-package wallaby
+package common
 
 import (
     "encoding"
@@ -6,8 +6,6 @@ import (
 
     "github.com/swiftkick-io/xbinary"
 )
-
-// ### **Snapshot**
 
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a XXH64 hash of all the log entries.
 type Snapshot interface {
@@ -17,7 +15,9 @@ type Snapshot interface {
     encoding.BinaryMarshaler
 }
 
-// #### **BasicSnapshot**
+func NewSnapshot(nanos, size int64, hash uint64) Snapshot {
+    return BasicSnapshot{nanos, size, hash}
+}
 
 // BasicSnapshot represents the simplest snapshot which fulfills the Snapshot interface. The timestamp is stored as nanoseconds since epoch. Both size and hash are stored as 64-bit integers.
 type BasicSnapshot struct {
@@ -26,28 +26,20 @@ type BasicSnapshot struct {
     hash  uint64
 }
 
-// ###### *Time*
-
 // Time converts the nanoseconds since epoch into a `time.Time` instance.
 func (b BasicSnapshot) Time() time.Time {
     return time.Unix(0, b.nanos)
 }
-
-// ###### *Size*
 
 // Size returns the number of records in the log at the time the snapshot was taken.
 func (b BasicSnapshot) Size() int64 {
     return b.size
 }
 
-// ###### *Hash*
-
 // Hash returns the XXH64 hash of the log file.
 func (b BasicSnapshot) Hash() uint64 {
     return b.hash
 }
-
-// ###### *MarshalSnapshot*
 
 // MarshalBinary converts the snapshot into a byte array.
 // The byte array is formatted like so:
