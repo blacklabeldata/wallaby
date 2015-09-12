@@ -1,0 +1,26 @@
+{
+	"ImportPath": "github.com/blacklabeldata/wallaby",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/OneOfOne/xxhash",
+			"Rev": "12adbb5d644e6cd33b2c246d9d2c9d31cee980e4"
+		},
+		{
+			"ImportPath": "github.com/blacklabeldata/m3",
+			"Rev": "3da124cb82a27c50d6d8140de303a3e969af202c"
+		},
+		{
+			"ImportPath": "github.com/blacklabeldata/xbinary",
+			"Rev": "c5227a8f59bc764a4cef1ff615360f801635d260"
+		},
+		{
+			"ImportPath": "github.com/edsrzf/mmap-go",
+			"Rev": "6c75090c55983bef2e129e173681b20d24871ef8"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Rev": "de7fcff264cd05cc0c90c509ea789a436a0dd206"
+		}
+	]
+}

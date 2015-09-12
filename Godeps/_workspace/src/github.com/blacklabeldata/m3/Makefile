@@ -8,25 +8,31 @@ test:
 	@echo "------------------"
 	@echo " test"
 	@echo "------------------"
-	@godep go test -v -coverprofile=$(CWD)/coverage.out -covermode count
+	@go test -v -coverprofile=$(CWD)/coverage.out -covermode=count
+
+docs:
+	@echo "------------------"
+	@echo " docs"
+	@echo "------------------"
+	@groc --github
 
 bench:
 	@echo "------------------"
 	@echo " benchmark"
 	@echo "------------------"
-	@godep go test -test.bench "^Bench*" -benchmem
+	@go test -test.bench "^Bench*" -benchmem
 
 html:
 	@echo "------------------"
 	@echo " html report"
 	@echo "------------------"
-	@godep go tool cover -html=$(CWD)/coverage.out -o $(CWD)/coverage.html
+	@go tool cover -html=$(CWD)/coverage.out -o $(CWD)/coverage.html
 	@open coverage.html
 
 detail:
 	@echo "------------------"
 	@echo " detailed report"
 	@echo "------------------"
-	@gocov convert $(CWD)/coverage.out | gocov report
+	@gocov test | gocov report
 
 report: test detail html

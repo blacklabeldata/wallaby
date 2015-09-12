@@ -8,7 +8,7 @@ test:
 	@echo "------------------"
 	@echo " test"
 	@echo "------------------"
-	@godep go test -v -coverprofile=$(CWD)/coverage.out -covermode count
+	@godep go test -v -coverprofile=$(CWD)/coverage.out -covermode=count
 
 bench:
 	@echo "------------------"
