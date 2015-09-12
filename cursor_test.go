@@ -5,8 +5,8 @@ import (
     "os"
     "testing"
 
+    "github.com/blacklabeldata/xbinary"
     "github.com/stretchr/testify/assert"
-    "github.com/swiftkick-io/xbinary"
 )
 
 func TestCursor(t *testing.T) {

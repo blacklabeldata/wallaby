@@ -4,14 +4,15 @@ import (
     "fmt"
     "os"
 
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/wallaby/common"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // versionOneLogCursor implements the LogCursor interface.
 type versionOneLogCursor struct {
-    index        LogIndex
+    index        common.LogIndex
     file         *os.File
-    slice        IndexSlice
+    slice        common.IndexSlice
     sliceOffset  int
     position     uint64
     recordBuffer []byte
@@ -20,7 +21,7 @@ type versionOneLogCursor struct {
 // ### Seek
 
 // Seek moves the cursor to a particular record in the log and returns that record. The current implementation is naive and performs several reads. This could be optimized.
-func (c *versionOneLogCursor) Seek(offset uint64) (LogRecord, error) {
+func (c *versionOneLogCursor) Seek(offset uint64) (common.LogRecord, error) {
     err := c.allocateSlice(offset)
     if err != nil {
         return nil, err
@@ -43,7 +44,7 @@ func (c *versionOneLogCursor) allocateSlice(offset uint64) error {
     return nil
 }
 
-func (c *versionOneLogCursor) Next() (LogRecord, error) {
+func (c *versionOneLogCursor) Next() (common.LogRecord, error) {
 
     if c.sliceOffset > c.slice.Size() {
         err := c.allocateSlice(c.position)

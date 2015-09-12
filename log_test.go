@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blacklabeldata/xbinary"
 	"github.com/stretchr/testify/assert"
-	"github.com/swiftkick-io/xbinary"
 )
 
 var DefaultTestConfig Config = Config{

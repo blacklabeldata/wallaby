@@ -4,9 +4,9 @@ import (
     "io"
     "os"
 
-    "github.com/swiftkick-io/m3"
-    "github.com/swiftkick-io/wallaby/common"
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/m3"
+    "github.com/blacklabeldata/wallaby/common"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // NewIndexRecordEncoder writes an `IndexRecord` into a byte array.
