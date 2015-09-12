@@ -7,9 +7,9 @@ import (
     "time"
 
     "github.com/OneOfOne/xxhash"
-    "github.com/swiftkick-io/m3"
-    "github.com/swiftkick-io/wallaby/common"
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/m3"
+    "github.com/blacklabeldata/wallaby/common"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // DefaultConfig can be used for sensible default log configuration.
@@ -159,7 +159,7 @@ func Create(file *os.File, filename string, config common.Config) (common.WriteA
     }
 
     // create log writer
-    writer, err := m3.NewMemMapWriter(file, 512*1024, stat.Size())
+    writer, err := m3.NewMemMapAppender(file, 512*1024, stat.Size())
     if err != nil {
         return nil, err
     }

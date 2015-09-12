@@ -4,7 +4,7 @@ import (
     "io"
     "os"
 
-    "github.com/swiftkick-io/m3"
+    "github.com/blacklabeldata/m3"
 )
 
 // WriteAheadLog implements an immutable write-ahead log file with indexes and

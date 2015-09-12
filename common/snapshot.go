@@ -4,7 +4,7 @@ import (
     "encoding"
     "time"
 
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // Snapshot captures a specific state of the log. It consists of the time the snapshot was taken, the number of items in the log, and a XXH64 hash of all the log entries.

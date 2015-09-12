@@ -4,7 +4,7 @@ import (
     "bytes"
     "io"
 
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // NewFileHeader creates a new FileHeader instance

@@ -8,8 +8,9 @@ import (
     "bytes"
     "os"
 
-    "github.com/swiftkick-io/wallaby/v1"
-    "github.com/swiftkick-io/xbinary"
+    "github.com/blacklabeldata/wallaby/common"
+    "github.com/blacklabeldata/wallaby/v1"
+    "github.com/blacklabeldata/xbinary"
 )
 
 // ## **Create a log file**
@@ -23,7 +24,7 @@ import (
 // In other words the file will not be updated to the newer version.
 
 // ###### Implementation
-func Create(filename string, config Config) (WriteAheadLog, error) {
+func Create(filename string, config common.Config) (common.WriteAheadLog, error) {
 
     // Determine if the given config is valid. If the given config is `nil`,
     // a `ErrConfigRequired` error will be returned.
@@ -86,7 +87,7 @@ func Create(filename string, config Config) (WriteAheadLog, error) {
 // a new log is created.
 
 // ###### Implentation
-func createNew(file *os.File, filename string, config Config) (WriteAheadLog, error) {
+func createNew(file *os.File, filename string, config common.Config) (common.WriteAheadLog, error) {
 
     // Create a buffer for the 4-byte file header.
     // The first 3 bytes contain the signature, `LOG`, followed by an 8-bit
@@ -133,7 +134,7 @@ func createNew(file *os.File, filename string, config Config) (WriteAheadLog, er
 // If the file header cannot be read, an error is also returned.
 
 // ###### Implementation
-func openExisting(file *os.File, filename string, config Config) (WriteAheadLog, error) {
+func openExisting(file *os.File, filename string, config common.Config) (common.WriteAheadLog, error) {
     // Create a buffer for the 8-byte file header.
     // The first 3 bytes are the signature `LOG` followed by an 8-bit version
     // and the boolean flags. Then read the file header into the buffer.
